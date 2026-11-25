@@ -163,6 +163,9 @@ for _version in ${_versions}; do
     rm -f svids/after-server-upgrade/*
     rm -f svids/after-agent-upgrade/*
 
+    # A slow pull after the bundle fetch outlasts the server CA and breaks the agent handshake
+    retry docker compose pull "spire-server-${_version}" "spire-agent-${_version}" || fail-now "image pull failed"
+
     # test old agent attestation against old server
     start-old-server "${_version}"
     bootstrap-agent "${_version}"

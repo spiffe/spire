@@ -851,6 +851,7 @@ func TestJitteredReattestInterval(t *testing.T) {
 
 	defaultService := New(Config{ReattestInterval: interval})
 	assert.Equal(t, defaultReattestInterval, defaultService.reattestInterval)
+	//nolint:testifylint // float-compare flags exact float equality. The constructor copies the default unchanged.
 	assert.Equal(t, defaultReattestJitter, defaultService.reattestJitter)
 	assertWithinJitter(t, defaultService, defaultReattestJitter)
 

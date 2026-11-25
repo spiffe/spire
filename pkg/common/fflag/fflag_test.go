@@ -3,8 +3,8 @@ package fflag
 import (
 	"testing"
 
-	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadOnce(t *testing.T) {
@@ -136,9 +136,9 @@ func TestUnload(t *testing.T) {
 			testCase.setup()
 			err := Unload()
 			if testCase.want.errStr == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				spiretest.AssertErrorContains(t, err, testCase.want.errStr)
+				require.ErrorContains(t, err, testCase.want.errStr)
 			}
 			for _, flag := range testCase.want.unloadedFlags {
 				assert.False(t, IsSet(flag))

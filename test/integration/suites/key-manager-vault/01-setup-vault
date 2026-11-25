@@ -89,6 +89,13 @@ done
 ./bin/helm install vault hashicorp/vault --namespace vault --version $CHARTVERSION -f conf/helm-values.yaml
 ./bin/kubectl wait -n kube-system --for=condition=available deployment --all --timeout=90s
 ./bin/kubectl wait pods -n vault --for=jsonpath='{.status.phase}'=Running vault-0 --timeout=90s
+# vault status exits 2 while sealed, which means the server answers
+for _ in $(seq 60); do
+  rc=0; kubectl-exec-vault vault status > /dev/null || rc=$?
+  [ "$rc" -ne 1 ] && break
+  sleep 1
+done
+[ "$rc" -ne 1 ] || fail-now "vault did not answer after 60 seconds"
 
 # Initialize and unseal
 log-info "initializing hashicorp vault..."

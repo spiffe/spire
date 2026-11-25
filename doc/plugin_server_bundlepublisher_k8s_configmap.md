@@ -20,7 +20,7 @@ Each cluster in the main configuration has the following configuration options:
 | configmap_key   | The key within the ConfigMap for the bundle.                                                                                                                                                           | Yes.     |         |
 | namespace       | The namespace containing the ConfigMap.                                                                                                                                                                | Yes.     |         |
 | kubeconfig_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, in-cluster credentials will be used.                                       | No.      |         |
-| format          | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                                         | Yes.     |         |
+| format          | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; oidc_jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats).                                         | Yes.     |         |
 | refresh_hint    | Sets the refresh hint for the bundle when using the spiffe format. Specified as string e.g. '10m', '1h'. See [time.ParseDuration](https://pkg.go.dev/time#ParseDuration) for details                   | No.      |         |
 
 ## Supported bundle formats
@@ -34,6 +34,10 @@ The trust bundle is represented as an RFC 7517 compliant JWK Set, with the speci
 ### JWKS format
 
 The trust bundle is encoded as an RFC 7517 compliant JWK Set, omitting SPIFFE-specific parameters. Both the JWT authorities and the X.509 authorities are included.
+
+### OIDC JWKS format
+
+The trust bundle is encoded as an RFC 7517 compliant JWK Set that OIDC relying parties can use to verify JWT-SVIDs. Only the JWT authorities are included. Every key has its `kid`, its `use` parameter set to `sig` and, when SPIRE can derive it from the key type, its `alg` parameter: `RS256` for RSA keys of 2048 bits or more, `ES256` for P-256 keys and `ES384` for P-384 keys. Any other key, such as an RSA key under 2048 bits, is published without `alg`. These are the same keys, with the same members, as the keys endpoint of the [OIDC Discovery Provider](../support/oidc-discovery-provider/README.md) returns with `set_key_use` enabled. When the bundle has no JWT authorities, an empty set (`{"keys":[]}`) is published. Publishing fails if the key of a JWT authority cannot be parsed.
 
 ### PEM format
 

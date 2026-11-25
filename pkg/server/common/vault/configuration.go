@@ -1,6 +1,8 @@
 package vault
 
 import (
+	"errors"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -99,11 +101,8 @@ func GenClientParams(method AuthMethod, baseConfig *BaseConfiguration, lookupEnv
 		cp.AppRoleID = envOrDefault(EnvVaultAppRoleID, baseConfig.AppRoleAuth.RoleID)
 		cp.AppRoleSecretID = envOrDefault(EnvVaultAppRoleSecretID, baseConfig.AppRoleAuth.SecretID)
 	case K8S:
-		if baseConfig.K8sAuth.K8sAuthRoleName == "" {
-			return nil, status.Error(codes.InvalidArgument, "k8s_auth_role_name is required")
-		}
-		if baseConfig.K8sAuth.TokenPath == "" {
-			return nil, status.Error(codes.InvalidArgument, "token_path is required")
+		if err := validateK8sAuth(baseConfig.K8sAuth); err != nil {
+			return nil, err
 		}
 		cp.K8sAuthMountPoint = baseConfig.K8sAuth.K8sAuthMountPoint
 		cp.K8sAuthRoleName = baseConfig.K8sAuth.K8sAuthRoleName
@@ -111,6 +110,34 @@ func GenClientParams(method AuthMethod, baseConfig *BaseConfiguration, lookupEnv
 	}
 
 	return cp, nil
+}
+
+// Validate checks the parts of the configuration that environment variables
+// cannot provide, i.e. that exactly one authentication method is configured
+// and that the Kubernetes one has the fields it requires. These are the same
+// checks that fail the plugin's Configure, so running them here lets them be
+// reported when the configuration is validated, and not only at startup.
+func (c *BaseConfiguration) Validate() error {
+	method, err := ParseAuthMethod(c)
+	if err != nil {
+		return errors.New(status.Convert(err).Message())
+	}
+	if method == K8S {
+		if err := validateK8sAuth(c.K8sAuth); err != nil {
+			return errors.New(status.Convert(err).Message())
+		}
+	}
+	return nil
+}
+
+func validateK8sAuth(config *K8sAuthConfig) error {
+	if config.K8sAuthRoleName == "" {
+		return status.Error(codes.InvalidArgument, "k8s_auth_role_name is required")
+	}
+	if config.TokenPath == "" {
+		return status.Error(codes.InvalidArgument, "token_path is required")
+	}
+	return nil
 }
 
 func ParseAuthMethod(config *BaseConfiguration) (AuthMethod, error) {

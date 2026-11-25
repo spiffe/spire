@@ -53,9 +53,12 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
+	if err := newConfig.BaseConfiguration.Validate(); err != nil {
+		status.ReportError(err.Error())
+	}
+
 	// TODO: add field validations
 
-	// TODO: consider moving some elements of parseAuthMethod into config checking
 	// TODO: consider moving some elements of genClientParams into config checking
 	// TODO: consider moving some elements of NewClientConfig into config checking
 

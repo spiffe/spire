@@ -290,6 +290,33 @@ const (
 	// DeprecatedServiceAlertType tags alerts for deprecated plugin services.
 	DeprecatedServiceAlertType = "deprecated_service"
 
+	// AgentIdentityAlertType tags alerts about the agent's own identity. The
+	// specific condition is named by the AlertCondition field.
+	AgentIdentityAlertType = "agent_identity"
+
+	// AlertCondition names the specific condition behind an alert log event,
+	// so alerts that share an alert type can be told apart.
+	AlertCondition = "alert_condition"
+
+	// SVIDExpiredAlertCondition marks an agent SVID that expired before the
+	// agent could renew it.
+	SVIDExpiredAlertCondition = "svid_expired"
+
+	// AgentBannedAlertCondition marks an agent that was banned by the server.
+	AgentBannedAlertCondition = "agent_banned"
+
+	// ReattestationRequiredAlertCondition marks an agent that was told to
+	// re-attest while starting up and shut down instead.
+	ReattestationRequiredAlertCondition = "reattestation_required"
+
+	// ReattestationFailedAlertCondition marks an agent that was told to
+	// re-attest and failed to do so.
+	ReattestationFailedAlertCondition = "reattestation_failed"
+
+	// RebootstrapAlertCondition marks an agent that is rebootstrapping its
+	// trust bundle because it no longer agrees with the server.
+	RebootstrapAlertCondition = "rebootstrap"
+
 	// DeprecatedServiceName tags the deprecated service name
 	DeprecatedServiceName = "deprecated_service_name"
 

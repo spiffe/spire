@@ -61,7 +61,7 @@ func New(t *testing.T, responses ...*FakeRequest) *WorkloadAPI {
 		case *workload.ValidateJWTSVIDResponse:
 			w.validateJWTRequest = *response
 		default:
-			require.FailNow(t, "unexpected result type %T", response.Resp)
+			require.FailNow(t, fmt.Sprintf("unexpected result type %T", response.Resp))
 		}
 	}
 

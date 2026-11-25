@@ -752,7 +752,7 @@ func marshalPayload(t *testing.T, attReq *common_devid.AttestationRequest) []byt
 }
 
 func requireSelectorsMatch(t *testing.T, expected []*common.Selector, actual []*common.Selector) {
-	require.Equal(t, len(expected), len(actual))
+	require.Len(t, actual, len(expected))
 	for idx, expSel := range expected {
 		require.Equal(t, expSel.Type, actual[idx].Type)
 		require.Equal(t, expSel.Value, actual[idx].Value)

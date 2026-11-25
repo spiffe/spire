@@ -422,3 +422,65 @@ func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expec
 		}
 	}
 }
+
+// uncappedSVIDServer is a fake server that, like the real one, issues SVIDs
+// that expire exactly as requested (with one second precision) when nothing
+// caps their lifetime.
+type uncappedSVIDServer struct {
+	fakeSVIDServer
+}
+
+func (s *uncappedSVIDServer) MintX509SVID(_ context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(0),
+		NotAfter:     time.Now().Add(time.Duration(req.Ttl) * time.Second),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, testKey.Public(), testKey)
+	if err != nil {
+		return nil, err
+	}
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, err
+	}
+	return &svidv1.MintX509SVIDResponse{
+		Svid: &types.X509SVID{
+			CertChain: [][]byte{certDER},
+			ExpiresAt: cert.NotAfter.Unix(),
+		},
+	}, nil
+}
+
+func TestMintRunDoesNotWarnWhenTTLIsNotCapped(t *testing.T) {
+	x509Authority, err := pemutil.ParseCertificate([]byte(testX509Authority))
+	require.NoError(t, err)
+
+	server := &uncappedSVIDServer{}
+	server.bundle = &types.Bundle{
+		X509Authorities: []*types.X509Certificate{{Asn1: x509Authority.Raw}},
+	}
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
+		svidv1.RegisterSVIDServer(s, server)
+		bundlev1.RegisterBundleServer(s, server)
+	})
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd := newMintCommand(&common_cli.Env{
+		Stdin:   new(bytes.Buffer),
+		Stdout:  stdout,
+		Stderr:  stderr,
+		BaseDir: spiretest.TempDir(t),
+	}, func() (crypto.Signer, error) {
+		return testKey, nil
+	})
+
+	code := cmd.Run([]string{
+		clitest.AddrArg, clitest.GetAddr(addr),
+		"-spiffeID", "spiffe://domain.test/workload",
+		"-ttl", "1m",
+	})
+
+	assert.Equal(t, 0, code, "exit code does not match")
+	assert.Empty(t, stderr.String(), "stderr does not match")
+}

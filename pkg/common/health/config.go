@@ -1,13 +1,20 @@
 package health
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl/hcl/token"
 )
+
+// registeredAt matches the source location that http.ServeMux adds to the
+// message of a conflict, which is of no use in a configuration error.
+var registeredAt = regexp.MustCompile(` \(registered at [^)]*\)`)
 
 type Config struct {
 	ListenerEnabled bool `hcl:"listener_enabled"`
@@ -64,6 +71,44 @@ func (c *Config) getLivePath() string {
 // Details are additional data to be used when the system is ready
 type Details struct {
 	Message string `json:"message,omitempty"`
+}
+
+// Validate checks that the HTTP paths of the health check listener can be
+// served. It does nothing when the listener is disabled, since the paths are
+// not used then.
+//
+// http.ServeMux panics instead of returning an error when it is given a path
+// it does not accept (for example one without a leading slash) or a path that
+// conflicts with one it already has (for example the same path twice, or
+// "/a/{x}" and "/a/{y}"), so the paths have to be checked before the checker
+// is created.
+func (c *Config) Validate() error {
+	if !c.ListenerEnabled {
+		return nil
+	}
+
+	// Register both paths on the same mux, as NewChecker does, so that a
+	// conflict between them is reported too.
+	mux := http.NewServeMux()
+	if err := registerPath(mux, c.getReadyPath()); err != nil {
+		return fmt.Errorf("invalid health_checks ready_path: %w", err)
+	}
+	if err := registerPath(mux, c.getLivePath()); err != nil {
+		return fmt.Errorf("invalid health_checks live_path: %w", err)
+	}
+	return nil
+}
+
+// registerPath registers the path on the mux and returns an error instead of
+// panicking if the mux does not accept it.
+func registerPath(mux *http.ServeMux, path string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(registeredAt.ReplaceAllString(fmt.Sprint(r), ""))
+		}
+	}()
+	mux.HandleFunc(path, func(http.ResponseWriter, *http.Request) {})
+	return nil
 }
 
 // ParseCheckInterval sets CheckInterval from RawCheckInterval.

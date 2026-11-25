@@ -141,10 +141,10 @@ func TestParseFlagsGood(t *testing.T) {
 		"-logLevel=INFO",
 	}, os.Stderr)
 	require.NoError(t, err)
-	assert.Equal(t, c.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.Experimental.NamedPipeName, "\\tmp\\flag")
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.LogLevel, "INFO")
+	assert.Equal(t, "127.0.0.1", c.BindAddress)
+	assert.Equal(t, "\\tmp\\flag", c.Experimental.NamedPipeName)
+	assert.Equal(t, "example.org", c.TrustDomain)
+	assert.Equal(t, "INFO", c.LogLevel)
 }
 
 func mergeInputCasesOS(*testing.T) []mergeInputCase {
@@ -196,5 +196,5 @@ func newServerConfigCasesOS(*testing.T) []newServerConfigCase {
 }
 
 func testParseConfigGoodOS(t *testing.T, c *Config) {
-	assert.Equal(t, c.Server.Experimental.NamedPipeName, "\\spire-server\\private\\api-test")
+	assert.Equal(t, "\\spire-server\\private\\api-test", c.Server.Experimental.NamedPipeName)
 }

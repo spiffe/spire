@@ -3,18 +3,17 @@ package logger_test
 import (
 	"testing"
 
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 )
 
 func TestSetHelp(t *testing.T) {
 	test := setupCliTest(t, &mockLoggerService{}, logger.NewSetCommandWithEnv)
 	test.client.Help()
-	require.Equal(t, "", test.stdout.String())
+	require.Empty(t, test.stdout.String())
 	require.Equal(t, setUsage, test.stderr.String())
 }
 

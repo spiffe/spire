@@ -100,42 +100,41 @@ func TestInvalidConfigs(t *testing.T) {
 }
 
 func TestGcpCAS(t *testing.T) {
+	// Scenario:
+	//   We mock client's LoadCertificateAuthorities() to return in the following order:
+	//      * caZ is an intermediate CA which is signed by externalCAY
+	//      * caX is a root CA that is in GCP CAS with the second-oldest expiry (T + 2)
+	//      * caM is a root CA that is in GCP CAS with the earliest expiry (T + 1) but it is DISABLED
+	//   Everything except caM are in ENABLED state
+	//   Also note that the above is not ordered by expiry time
+	// Expectation:
+	//   * caX should be selected for signing
+	//   * root trust bundle should have { caX, externalcaY }. It should
+	//     neither have DISABLED caM nor intermediate caZ
+	caX, pkeyCAx, err := generateCert("caX", nil, nil, 2, elliptic.P384())
+	require.NoError(t, err)
+	require.NotNil(t, pkeyCAx)
+	require.NotNil(t, caX)
+
+	caY, pkeyCAy, err := generateCert("externalcaY", nil, nil, 3, elliptic.P384())
+	require.NoError(t, err)
+	require.NotNil(t, pkeyCAy)
+	require.NotNil(t, caY)
+
+	caZ, _, err := generateCert("caZ", caY, pkeyCAy, 3, elliptic.P384())
+	require.NoError(t, err)
+	require.NotNil(t, caZ)
+
+	caM, _, err := generateCert("caM", nil, nil, 1, elliptic.P384())
+	require.NoError(t, err)
+	require.NotNil(t, caM)
+
+	// Note: fakeClient.LoadCertificateAuthority() will automatically
+	// mark the last CA (i.e. caM) as DISABLED
+	// The rest (caX, caZ, caY) will be marked as ENABLED
+	cas := [][]*x509.Certificate{{caX}, {caZ, caY}, {caM}}
 	p := New()
-	p.hook.getClient = func(ctxt context.Context) (CAClient, error) {
-		// Scenario:
-		//   We mock client's LoadCertificateAuthorities() to return in the following order:
-		//      * caZ is an intermediate CA which is signed by externalCAY
-		//      * caX is a root CA that is in GCP CAS with the second-oldest expiry (T + 2)
-		//      * caM is a root CA that is in GCP CAS with the earliest expiry (T + 1) but it is DISABLED
-		//   Everything except caM are in ENABLED state
-		//   Also note that the above is not ordered by expiry time
-		// Expectation:
-		//   * caX should be selected for signing
-		//   * root trust bundle should have { caX, externalcaY }. It should
-		//     neither have DISABLED caM nor intermediate caZ
-		caX, pkeyCAx, err := generateCert(t, "caX", nil, nil, 2, testkey.NewEC384)
-		require.NoError(t, err)
-		require.NotNil(t, pkeyCAx)
-		require.NotNil(t, caX)
-
-		caY, pkeyCAy, err := generateCert(t, "externalcaY", nil, nil, 3, testkey.NewEC384)
-		require.NoError(t, err)
-		require.NotNil(t, pkeyCAy)
-		require.NotNil(t, caY)
-
-		caZ, _, err := generateCert(t, "caZ", caY, pkeyCAy, 3, testkey.NewEC384)
-		require.NoError(t, err)
-		require.NotNil(t, caZ)
-
-		caM, _, err := generateCert(t, "caM", nil, nil, 1, testkey.NewEC384)
-		require.NoError(t, err)
-		require.NotNil(t, pkeyCAx)
-		require.NotNil(t, caX)
-
-		// Note: fakeClient.LoadCertificateAuthority() will automatically
-		// mark the last CA (i.e. caM) as DISABLED
-		// The rest (caX, caZ, caY) will be marked as ENABLED
-		cas := [][]*x509.Certificate{{caX}, {caZ, caY}, {caM}}
+	p.hook.getClient = func(context.Context) (CAClient, error) {
 		return &fakeClient{cas, t, &pkeyCAx, make(map[string]bool)}, nil
 	}
 
@@ -164,7 +163,7 @@ func TestGcpCAS(t *testing.T) {
 
 	require.NotNil(t, x509Authorities)
 	// Confirm that we don't have unexpected CAs
-	require.Equal(t, 2, len(x509Authorities))
+	require.Len(t, x509Authorities, 2)
 	require.Equal(t, "caX", x509Authorities[0].Certificate.Subject.CommonName)
 	require.Equal(t, "caX", x509Authorities[0].Certificate.Issuer.CommonName)
 	// We intentionally return the root externalcaY rather than intermediate caZ
@@ -172,7 +171,7 @@ func TestGcpCAS(t *testing.T) {
 	require.Equal(t, "externalcaY", x509Authorities[1].Certificate.Issuer.CommonName)
 
 	require.NotNil(t, x509CA)
-	require.Equal(t, 1, len(x509CA))
+	require.Len(t, x509CA, 1)
 
 	require.Equal(t, "caX", x509CA[0].Issuer.CommonName)
 
@@ -197,12 +196,30 @@ func TestGcpCAS(t *testing.T) {
 		_, _, _, err = upplugin.MintX509CA(ctx, csr, 30*time.Second)
 		require.NoError(t, err)
 	}
+
+	t.Run("certificate generation fails", func(t *testing.T) {
+		wrongKey := crypto.PrivateKey(testkey.NewEC256(t))
+		p.hook.getClient = func(context.Context) (CAClient, error) {
+			return &fakeClient{cas, t, &wrongKey, make(map[string]bool)}, nil
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _, _, err := upplugin.MintX509CA(ctx, csr, 30*time.Second)
+		require.ErrorContains(t, err, "provided PrivateKey doesn't match parent's PublicKey")
+	})
 }
 
-func generateCert(t *testing.T, cn string, issuer *x509.Certificate, issuerKey crypto.PrivateKey, ttlInHours int, keyfn func(testing.TB) *ecdsa.PrivateKey) (*x509.Certificate, crypto.PrivateKey, error) {
-	keyPair := keyfn(t)
+func generateCert(cn string, issuer *x509.Certificate, issuerKey crypto.PrivateKey, ttlInHours int, curve elliptic.Curve) (*x509.Certificate, crypto.PrivateKey, error) {
+	keyPair, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
@@ -257,9 +274,11 @@ func (client *fakeClient) CreateCertificate(_ context.Context, req *privatecapb.
 	// Mimic GCP GCA signing
 	// By first issuing a x509 cert and then converting it into GCP cert format
 	commonName := req.Certificate.GetConfig().GetSubjectConfig().GetSubject().GetCommonName()
-	x509ca, _, err := generateCert(client.t, commonName, client.mockX509CAs[0][0],
-		*client.privKeyOfEarliestCA, 1 /* TTL */, testkey.NewEC256)
-	assert.NoError(client.t, err)
+	x509ca, _, err := generateCert(commonName, client.mockX509CAs[0][0],
+		*client.privKeyOfEarliestCA, 1 /* TTL */, elliptic.P256())
+	if err != nil {
+		return nil, err
+	}
 	assert.NotNil(client.t, x509ca)
 
 	ca := new(privatecapb.Certificate)
