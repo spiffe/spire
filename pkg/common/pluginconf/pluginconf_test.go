@@ -20,7 +20,7 @@ func TestConfig(t *testing.T) {
 	}{
 		{
 			name:       "older SPIRE sends only HCL",
-			req:        &configv1.ConfigureRequest{HclConfiguration: "a = 1"}, //nolint:staticcheck // legacy field
+			req:        &configv1.ConfigureRequest{HclConfiguration: "a = 1"},
 			wantText:   "a = 1",
 			wantFormat: catalog.ConfigFormatHCL,
 		},
@@ -33,7 +33,7 @@ func TestConfig(t *testing.T) {
 		{
 			name: "YAML",
 			req: &configv1.ConfigureRequest{
-				HclConfiguration: "legacy", //nolint:staticcheck // legacy field
+				HclConfiguration: "legacy",
 				Configuration:    "a: 1",
 				ConfigFormat:     configv1.ConfigFormat_CONFIG_FORMAT_YAML,
 			},
@@ -43,7 +43,7 @@ func TestConfig(t *testing.T) {
 		{
 			name: "empty YAML ignores the legacy field",
 			req: &configv1.ConfigureRequest{
-				HclConfiguration: "legacy", //nolint:staticcheck // legacy field
+				HclConfiguration: "legacy",
 				ConfigFormat:     configv1.ConfigFormat_CONFIG_FORMAT_YAML,
 			},
 			wantText:   "",

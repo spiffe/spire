@@ -35,13 +35,13 @@ func TestConfigurerV1Requests(t *testing.T) {
 		core := &configv1.CoreConfiguration{TrustDomain: "example.org"}
 		require.True(t, proto.Equal(&configv1.ConfigureRequest{
 			CoreConfiguration: core,
-			HclConfiguration:  tt.legacy, //nolint:staticcheck // legacy field is still sent
+			HclConfiguration:  tt.legacy,
 			Configuration:     tt.data,
 			ConfigFormat:      tt.proto,
 		}, client.configureReq), "%v", client.configureReq)
 		require.True(t, proto.Equal(&configv1.ValidateRequest{
 			CoreConfiguration: core,
-			HclConfiguration:  tt.legacy, //nolint:staticcheck // legacy field is still sent
+			HclConfiguration:  tt.legacy,
 			Configuration:     tt.data,
 			ConfigFormat:      tt.proto,
 		}, client.validateReq), "%v", client.validateReq)

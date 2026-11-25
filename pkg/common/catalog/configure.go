@@ -171,7 +171,7 @@ func (v1 *configurerV1) InitLog(logrus.FieldLogger) {
 func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) error {
 	req := &configv1.ConfigureRequest{
 		CoreConfiguration: coreConfig.v1(),
-		HclConfiguration:  legacyConfiguration(configuration, format), //nolint:staticcheck // read by plugins built with older SDKs
+		HclConfiguration:  legacyConfiguration(configuration, format),
 		Configuration:     configuration,
 		ConfigFormat:      format.ToProto(),
 	}
@@ -182,7 +182,7 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, co
 func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) (*configv1.ValidateResponse, error) {
 	return v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
 		CoreConfiguration: coreConfig.v1(),
-		HclConfiguration:  legacyConfiguration(configuration, format), //nolint:staticcheck // read by plugins built with older SDKs
+		HclConfiguration:  legacyConfiguration(configuration, format),
 		Configuration:     configuration,
 		ConfigFormat:      format.ToProto(),
 	})

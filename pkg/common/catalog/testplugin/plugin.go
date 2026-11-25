@@ -66,11 +66,11 @@ func (p *Plugin) ServiceEcho(ctx context.Context, req *test.EchoRequest) (*test.
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	p.log.Info("CONFIGURED", "config", req.HclConfiguration) //nolint:staticcheck // acts as a plugin built against an older SDK
+	p.log.Info("CONFIGURED", "config", req.HclConfiguration)
 	if req.CoreConfiguration.TrustDomain != "example.org" {
 		return nil, status.Errorf(codes.InvalidArgument, "expected trust domain %q; got %q", "example.org", req.CoreConfiguration.TrustDomain)
 	}
-	if !strings.HasPrefix(req.HclConfiguration, "GOOD") { //nolint:staticcheck // acts as a plugin built against an older SDK
+	if !strings.HasPrefix(req.HclConfiguration, "GOOD") {
 		return nil, status.Error(codes.InvalidArgument, "bad config")
 	}
 	return &configv1.ConfigureResponse{}, nil
