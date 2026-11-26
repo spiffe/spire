@@ -694,6 +694,7 @@ func (s *CATestSuite) TestSignWithMLDSAKeys() {
 	s.Require().NoError(err)
 	s.Require().Len(svidChain, 1)
 	s.Require().Equal(x509.MLDSA65, svidChain[0].SignatureAlgorithm)
+	s.Require().Equal(x509.KeyUsageDigitalSignature, svidChain[0].KeyUsage)
 
 	x509Bundle := x509bundle.FromX509Authorities(trustDomainExample, []*x509.Certificate{caCert})
 	id, _, err := x509svid.Verify(svidChain, x509Bundle, x509svid.WithTime(s.clock.Now()))

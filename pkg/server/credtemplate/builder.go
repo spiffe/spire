@@ -3,6 +3,7 @@ package credtemplate
 import (
 	"context"
 	"crypto"
+	"crypto/mldsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -461,9 +462,11 @@ func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.P
 	}
 
 	tmpl.NotBefore, tmpl.NotAfter = b.computeX509SVIDLifetime(parentChain, ttl, expirationCap)
-	tmpl.KeyUsage = x509.KeyUsageKeyEncipherment |
-		x509.KeyUsageKeyAgreement |
-		x509.KeyUsageDigitalSignature
+	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
+	// RFC 9881 forbids keyEncipherment and keyAgreement for ML-DSA keys.
+	if _, ok := publicKey.(*mldsa.PublicKey); !ok {
+		tmpl.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageKeyAgreement
+	}
 	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{
 		x509.ExtKeyUsageServerAuth,
 		x509.ExtKeyUsageClientAuth,

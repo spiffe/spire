@@ -1,6 +1,7 @@
 package credvalidator_test
 
 import (
+	"crypto/mldsa"
 	"crypto/x509"
 	"fmt"
 	"net/url"
@@ -135,6 +136,9 @@ func TestValidateX509CA(t *testing.T) {
 }
 
 func TestValidateX509SVID(t *testing.T) {
+	mldsaKey, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	require.NoError(t, err)
+
 	for _, tc := range []struct {
 		desc      string
 		setup     func(svid *x509.Certificate)
@@ -176,6 +180,28 @@ func TestValidateX509SVID(t *testing.T) {
 			setup: func(svid *x509.Certificate) {
 				svid.KeyUsage |= x509.KeyUsageKeyAgreement
 			},
+		},
+		{
+			desc: "ML-DSA key with digitalSignature key usage",
+			setup: func(svid *x509.Certificate) {
+				svid.PublicKey = mldsaKey.Public()
+			},
+		},
+		{
+			desc: "ML-DSA key with keyEncipherment key usage",
+			setup: func(svid *x509.Certificate) {
+				svid.PublicKey = mldsaKey.Public()
+				svid.KeyUsage |= x509.KeyUsageKeyEncipherment
+			},
+			expectErr: "invalid X509-SVID: keyEncipherment and keyAgreement key usage must not be set for ML-DSA keys",
+		},
+		{
+			desc: "ML-DSA key with keyAgreement key usage",
+			setup: func(svid *x509.Certificate) {
+				svid.PublicKey = mldsaKey.Public()
+				svid.KeyUsage |= x509.KeyUsageKeyAgreement
+			},
+			expectErr: "invalid X509-SVID: keyEncipherment and keyAgreement key usage must not be set for ML-DSA keys",
 		},
 		{
 			desc: "key usage other than digitalSignature, keyEncipherment, and keyAgreement",
