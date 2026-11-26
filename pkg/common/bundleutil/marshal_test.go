@@ -1,6 +1,8 @@
 package bundleutil
 
 import (
+	"crypto/mldsa"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -312,4 +314,48 @@ func TestMarshalWITSVIDBundle(t *testing.T) {
 		"spiffe_refresh_hint": 60,
 		"spiffe_sequence": 42
 	}`, bundleBytes)
+}
+
+func TestMarshalMLDSAKeys(t *testing.T) {
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	jwtKey, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	require.NoError(t, err)
+	witKey, err := mldsa.GenerateKey(mldsa.MLDSA87())
+	require.NoError(t, err)
+
+	bundle := spiffebundle.New(trustDomain)
+	bundle.SetRefreshHint(time.Minute)
+	bundle.SetSequenceNumber(42)
+	require.NoError(t, bundle.AddJWTAuthority("FOO", jwtKey.Public()))
+	require.NoError(t, bundle.AddWITAuthority("BAR", witKey.Public()))
+
+	// Stored form
+	protoBundle, err := SPIFFEBundleToProto(bundle)
+	require.NoError(t, err)
+	fromProto, err := SPIFFEBundleFromProto(protoBundle)
+	require.NoError(t, err)
+	require.True(t, bundle.Equal(fromProto))
+
+	// Published form
+	bundleBytes, err := Marshal(bundle)
+	require.NoError(t, err)
+	var jwks struct {
+		Keys []struct {
+			Use string `json:"use"`
+			Kty string `json:"kty"`
+			Alg string `json:"alg"`
+		} `json:"keys"`
+	}
+	require.NoError(t, json.Unmarshal(bundleBytes, &jwks))
+	require.Len(t, jwks.Keys, 2)
+	require.Equal(t, "jwt-svid", jwks.Keys[0].Use)
+	require.Equal(t, "AKP", jwks.Keys[0].Kty)
+	require.Equal(t, "ML-DSA-65", jwks.Keys[0].Alg)
+	require.Equal(t, "wit-svid", jwks.Keys[1].Use)
+	require.Equal(t, "AKP", jwks.Keys[1].Kty)
+	require.Equal(t, "ML-DSA-87", jwks.Keys[1].Alg)
+
+	parsed, err := spiffebundle.Parse(trustDomain, bundleBytes)
+	require.NoError(t, err)
+	require.True(t, bundle.Equal(parsed))
 }

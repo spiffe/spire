@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
@@ -707,6 +708,51 @@ func (s *CATestSuite) TestSignWithMLDSAKeys() {
 	svid, err := gospiffejwtsvid.ParseAndValidate(token, jwtBundle, []string{"AUDIENCE"})
 	s.Require().NoError(err)
 	s.Require().Equal("spiffe://example.org/workload", svid.ID.String())
+}
+
+func (s *CATestSuite) TestSignWorkloadWITSVIDWithMLDSAKey() {
+	km := fakeserverkeymanager.New(s.T())
+	witKey, err := km.GenerateKey(ctx, "wit-key", keymanager.MLDSA65)
+	s.Require().NoError(err)
+	s.ca.SetWITKey(&WITKey{
+		Signer:   witKey,
+		Kid:      "KID",
+		NotAfter: s.clock.Now().Add(24 * time.Hour),
+	})
+
+	workloadKey, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	s.Require().NoError(err)
+	params := s.createWITSVIDParams(trustDomainExample, 0)
+	params.PublicKey = jose.JSONWebKey{
+		Key:       workloadKey.Public(),
+		Algorithm: string(jose.MLDSA44),
+	}
+	token, err := s.ca.SignWorkloadWITSVID(ctx, params)
+	s.Require().NoError(err)
+
+	parsed, err := jwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.MLDSA65})
+	s.Require().NoError(err)
+	s.Require().Len(parsed.Headers, 1)
+	s.Require().Equal("KID", parsed.Headers[0].KeyID)
+	s.Require().Equal("wit+jwt", parsed.Headers[0].ExtraHeaders[jose.HeaderType])
+
+	var claims struct {
+		jwt.Claims
+		Cnf struct {
+			JWK jose.JSONWebKey `json:"jwk"`
+		} `json:"cnf"`
+	}
+	s.Require().NoError(parsed.Claims(witKey.Public(), &claims))
+	s.Require().Equal("spiffe://example.org/workload", claims.Subject)
+	s.Require().Equal(string(jose.MLDSA44), claims.Cnf.JWK.Algorithm)
+	cnfKey, ok := claims.Cnf.JWK.Key.(*mldsa.PublicKey)
+	s.Require().True(ok)
+	s.Require().True(cnfKey.Equal(workloadKey.Public()))
+
+	// Signature must not verify with a different key
+	otherKey, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	s.Require().NoError(err)
+	s.Require().Error(parsed.Claims(otherKey.Public(), &claims))
 }
 
 func (s *CATestSuite) setX509CA(selfSigned bool) {
