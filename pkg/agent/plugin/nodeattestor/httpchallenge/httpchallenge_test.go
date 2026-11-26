@@ -46,7 +46,7 @@ func TestConfigureCommon(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: tt.trustDomain,
 				},
-				HclConfiguration: tt.hclConf},
+				Configuration: tt.hclConf},
 			)
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)

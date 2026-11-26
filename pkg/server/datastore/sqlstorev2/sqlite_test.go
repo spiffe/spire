@@ -12,6 +12,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,19 @@ func TestConfigureSQLite(t *testing.T) {
 	var jm struct{ JournalMode string }
 	require.NoError(t, ds.RawScan(&jm, "PRAGMA journal_mode"))
 	require.Equal(t, "wal", jm.JournalMode)
+
+	var fk struct{ ForeignKeys string }
+	require.NoError(t, ds.RawScan(&fk, "PRAGMA foreign_keys"))
+	require.Equal(t, "1", fk.ForeignKeys)
+}
+
+func TestConfigureSQLiteYAML(t *testing.T) {
+	path := sqlitePath(t)
+	ds := newSQLitePlugin(t)
+	require.NoError(t, ds.ConfigureFormat(context.Background(), fmt.Sprintf(`
+database_type: sqlite3
+connection_string: %q
+`, path), catalog.ConfigFormatYAML))
 
 	var fk struct{ ForeignKeys string }
 	require.NoError(t, ds.RawScan(&fk, "PRAGMA foreign_keys"))

@@ -57,6 +57,15 @@ func Configure(plainConfig string) Option {
 	})
 }
 
+// ConfigureYAML provides raw YAML configuration to the plugin for configuration.
+func ConfigureYAML(yamlConfig string) Option {
+	return optionFunc(func(conf *config) {
+		conf.doConfigure = true
+		conf.plainConfig = &yamlConfig
+		conf.configFormat = catalog.ConfigFormatYAML
+	})
+}
+
 // Configuref provides a formatted string to the plugin for configuration.
 func Configuref(format string, args ...any) Option {
 	return Configure(fmt.Sprintf(format, args...))

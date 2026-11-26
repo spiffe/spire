@@ -114,7 +114,7 @@ func TestConfigure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := httpchallenge.New()
 			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{
-				HclConfiguration:  tt.hclConf,
+				Configuration:     tt.hclConf,
 				CoreConfiguration: tt.coreConf,
 			})
 			if tt.expErr != "" {

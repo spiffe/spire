@@ -387,7 +387,7 @@ kube_config_file_path = "/some/file/path"
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration: finalConfig,
+		Configuration: finalConfig,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -524,7 +524,7 @@ func TestConfigureWithMalformedConfiguration(t *testing.T) {
 	test := setupTest(t, withNoConfigure())
 
 	_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
-		HclConfiguration:  configuration,
+		Configuration:     configuration,
 		CoreConfiguration: coreConfig,
 	})
 
@@ -681,7 +681,7 @@ func TestConfigure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t, withNoConfigure())
 			_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
-				HclConfiguration:  tt.configuration,
+				Configuration:     tt.configuration,
 				CoreConfiguration: coreConfig,
 			})
 

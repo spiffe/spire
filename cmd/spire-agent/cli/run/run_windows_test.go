@@ -185,7 +185,7 @@ func TestParseConfigGood(t *testing.T) {
 			Name:       "plugin_name_agent",
 			Path:       "./pluginAgentCmd",
 			Checksum:   "pluginAgentChecksum",
-			DataSource: catalog.FixedData(data),
+			DataSource: catalog.FixedData{Data: data},
 			Disabled:   false,
 		},
 		{
@@ -193,7 +193,7 @@ func TestParseConfigGood(t *testing.T) {
 			Name:       "plugin_disabled",
 			Path:       ".\\pluginAgentCmd",
 			Checksum:   "pluginAgentChecksum",
-			DataSource: catalog.FixedData(data),
+			DataSource: catalog.FixedData{Data: data},
 			Disabled:   true,
 		},
 		{
@@ -201,7 +201,7 @@ func TestParseConfigGood(t *testing.T) {
 			Name:       "plugin_enabled",
 			Path:       "c:/temp/pluginAgentCmd",
 			Checksum:   "pluginAgentChecksum",
-			DataSource: catalog.FileData("plugin.conf"),
+			DataSource: catalog.FileData{Path: "plugin.conf"},
 			Disabled:   false,
 		},
 	}

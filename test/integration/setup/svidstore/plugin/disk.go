@@ -62,7 +62,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.svids = make(map[string]*svidstorev1.X509SVID)
 
 	config := new(Config)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
 	}
 

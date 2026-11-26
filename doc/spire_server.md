@@ -56,6 +56,8 @@ The following table outlines the configuration options for SPIRE server. These m
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
+YAML configuration files are also supported as an experimental feature. Please see [YAML Configuration](yaml_configuration.md) for details, including the requirements for external plugins.
+
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
 
@@ -132,6 +134,7 @@ a no-op, so a scheduled reopen on an idle service does not consume the
 |:-------------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------:|
 | `agent_spiffe_id_as_selector`   | Enable adding the agent spiffe_id to the list of node selectors automatically.                                                                                                                                         | false                              |
 | `allow_nonconforming_agent_ids` | Allow node attestors to produce agent IDs outside of `/spire/agent/<attestor>/`. When false, such attestations fail.                                                                                                   | false                              |
+| `enable_yaml_config`            | Must be set to true to use a YAML configuration file; only available in YAML. See [YAML Configuration](yaml_configuration.md).                                                                                         | false                              |
 | `cache_reload_interval`         | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s                                 |
 | `full_cache_reload_interval`    | How often to a full reload of the cache from the database when using the events based cache.                                                                                                                           | 24h                                |
 | `events_based_cache`            | Use events to update the cache with what's changed since the last update. Enabling this will reduce overhead on the database.                                                                                          | false                              |

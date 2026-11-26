@@ -15,9 +15,9 @@ import (
 // TLSConfig describes TLS configuration settings for terminating endpoints.
 // Unset fields are not applied.
 type TLSConfig struct {
-	CipherSuites     []string `hcl:"cipher_suites"`
-	CurvePreferences []string `hcl:"curve_preferences"`
-	MinTLSVersion    string   `hcl:"min_tls_version"`
+	CipherSuites     []string `hcl:"cipher_suites" yaml:"cipher_suites"`
+	CurvePreferences []string `hcl:"curve_preferences" yaml:"curve_preferences"`
+	MinTLSVersion    string   `hcl:"min_tls_version" yaml:"min_tls_version"`
 }
 
 // ParsedTLSConfig holds tls_config values parsed once at startup.

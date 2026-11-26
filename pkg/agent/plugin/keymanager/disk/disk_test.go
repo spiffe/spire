@@ -57,6 +57,23 @@ func TestConfigure(t *testing.T) {
 	})
 }
 
+func TestConfigureYAML(t *testing.T) {
+	load := func(config string) error {
+		var configErr error
+		plugintest.Load(t, disk.TestBuiltIn(keymanagertest.NewGenerator()), new(keymanager.V1),
+			plugintest.ConfigureYAML(config),
+			plugintest.CaptureConfigureError(&configErr),
+		)
+		return configErr
+	}
+
+	dir := filepath.Join(spiretest.TempDir(t), "no-such-dir")
+	require.NoError(t, load("directory: "+dir+"\n"))
+	require.DirExists(t, dir)
+
+	spiretest.RequireGRPCStatusContains(t, load("dir: "+dir+"\n"), codes.InvalidArgument, "field dir not found")
+}
+
 func TestGenerateKeyBeforeConfigure(t *testing.T) {
 	km := new(keymanager.V1)
 	plugintest.Load(t, disk.BuiltIn(), km)
