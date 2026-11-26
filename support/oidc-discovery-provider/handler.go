@@ -137,7 +137,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		AuthorizationEndpoint:            "",
 		ResponseTypesSupported:           []string{"id_token"},
 		SubjectTypesSupported:            []string{"public"},
-		IDTokenSigningAlgValuesSupported: []string{"RS256", "ES256", "ES384"},
+		IDTokenSigningAlgValuesSupported: []string{"RS256", "ES256", "ES384", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"},
 	}
 
 	docBytes, err := json.MarshalIndent(doc, "", "  ")
