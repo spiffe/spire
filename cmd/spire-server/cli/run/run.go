@@ -76,6 +76,7 @@ type serverConfig struct {
 	CAKeyType                    string               `hcl:"ca_key_type"`
 	CASubject                    *caSubjectConfig     `hcl:"ca_subject"`
 	CATTL                        string               `hcl:"ca_ttl"`
+	ActivationDelay              string               `hcl:"activation_delay"`
 	DataDir                      string               `hcl:"data_dir"`
 	DefaultX509SVIDTTL           string               `hcl:"default_x509_svid_ttl"`
 	DefaultJWTSVIDTTL            string               `hcl:"default_jwt_svid_ttl"`
@@ -621,6 +622,16 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 			return nil, fmt.Errorf("could not parse default CA ttl %q: %w", c.Server.CATTL, err)
 		}
 		sc.CATTL = ttl
+	}
+	if c.Server.ActivationDelay != "" {
+		delay, err := time.ParseDuration(c.Server.ActivationDelay)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse activation delay %q: %w", c.Server.ActivationDelay, err)
+		}
+		if delay <= 0 {
+			return nil, errors.New("activation delay must be positive")
+		}
+		sc.ActivationDelay = delay
 	}
 
 	sc.Experimental.AgentSpiffeIdAsSelector = c.Server.Experimental.AgentSpiffeIdAsSelector

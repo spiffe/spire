@@ -112,6 +112,14 @@ func TestX509CASlotRotationUsesEffectiveExpiry(t *testing.T) {
 	require.True(t, slot.ShouldActivateNext(now.Add(33*time.Minute+21*time.Second)))
 }
 
+func TestKeyActivationTime(t *testing.T) {
+	issuedAt := time.Now()
+	notAfter := issuedAt.Add(time.Hour)
+
+	require.Equal(t, issuedAt.Add(35*time.Minute), keyActivationTime(issuedAt, notAfter, issuedAt.Add(30*time.Minute), 5*time.Minute))
+	require.Equal(t, issuedAt.Add(50*time.Minute), keyActivationTime(issuedAt, notAfter, issuedAt.Add(30*time.Minute), 30*time.Minute))
+}
+
 func TestReconstructEffectiveX509CAExpiry(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().Truncate(time.Second)
