@@ -3,6 +3,7 @@ package sqlstorev2
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -41,7 +42,14 @@ func TestEntryReadsAcrossChunks(t *testing.T) {
 		ids = append(ids, entry.EntryId)
 	}
 
-	fetched, err := ds.FetchRegistrationEntries(ctx, ids)
+	// A deleted id and one that never existed are left out.
+	deleted, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId: parent, SpiffeId: "spiffe://example.org/deleted", Selectors: []*common.Selector{{Type: "c", Value: "x"}},
+	})
+	require.NoError(t, err)
+	_, err = ds.DeleteRegistrationEntry(ctx, deleted.EntryId)
+	require.NoError(t, err)
+	fetched, err := ds.FetchRegistrationEntries(ctx, append(slices.Clone(ids), deleted.EntryId, "missing"))
 	require.NoError(t, err)
 	require.Len(t, fetched, len(created))
 	for _, e := range created {
@@ -68,6 +76,16 @@ func TestEntryReadsAcrossChunks(t *testing.T) {
 				require.True(t, proto.Equal(e, resp.Entries[i]), "entry %d: got %v, want %v", i, resp.Entries[i], e)
 			}
 		})
+	}
+
+	// The loader returns id order whatever order the database gives the ids in.
+	var rowIDs []uint
+	require.NoError(t, ds.db.Model(&RegisteredEntry{}).Order("id DESC").Pluck("id", &rowIDs).Error)
+	loaded, err := loadEntriesByID(ds.db.DB, rowIDs)
+	require.NoError(t, err)
+	require.Len(t, loaded, len(created))
+	for i, e := range created {
+		require.Equal(t, e.EntryId, loaded[i].EntryId)
 	}
 
 	// Prune the first 7.

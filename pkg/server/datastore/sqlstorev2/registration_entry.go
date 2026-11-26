@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 	"unicode"
@@ -26,8 +27,8 @@ const (
 	maxAdditionalAttributesSize = 65535
 )
 
-// entryFetchChunk caps the entry IDs loaded by one statement; a var so tests
-// can cover chunking with few entries.
+// entryFetchChunk caps the entry IDs loaded by one statement. Tests lower it
+// to cover chunking, so tests in this package must not run in parallel.
 var entryFetchChunk = 1000
 
 var validEntryIDChars = &unicode.RangeTable{
@@ -566,9 +567,10 @@ func loadEntries(db *gorm.DB, prepare bool, cond string, args ...any) ([]*common
 	return scanEntryRows(rows)
 }
 
-// loadEntriesByID returns the entries with the given ids, which must be
-// sorted, in that order.
+// loadEntriesByID returns the entries with the given ids in id order, sorting
+// ids in place.
 func loadEntriesByID(db *gorm.DB, ids []uint) ([]*common.RegistrationEntry, error) {
+	slices.Sort(ids)
 	var entries []*common.RegistrationEntry
 	for chunk := range chunkSlice(ids, entryFetchChunk) {
 		list, _, err := loadEntries(db, true, "%[1]s IN ?", padIDs(chunk))
