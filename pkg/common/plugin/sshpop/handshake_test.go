@@ -165,7 +165,7 @@ func TestVerifyAttestationData(t *testing.T) {
 		{
 			desc: "cert is pubkey",
 			attestationData: func() []byte {
-				tt := newTest(t)
+				tt := newTest(t, principal("foo"))
 				return marshalAttestationData(t, tt.Certificate.Key.Marshal())
 			}(),
 			expectCode: codes.Internal,
@@ -174,7 +174,11 @@ func TestVerifyAttestationData(t *testing.T) {
 		{
 			desc: "cert has no valid principals",
 			attestationData: func() []byte {
-				tt := newTest(t)
+				// SignCert refuses a certificate without principals, so
+				// they are dropped after signing. The principals check
+				// runs before the signature is verified.
+				tt := newTest(t, principal("foo"))
+				tt.Certificate.ValidPrincipals = nil
 				return marshalAttestationData(t, tt.Certificate.Marshal())
 			}(),
 			expectCode: codes.Internal,
