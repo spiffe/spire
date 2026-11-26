@@ -4,14 +4,14 @@ import (
 	"context"
 	"crypto/x509"
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
+	"path"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -100,15 +100,6 @@ func (s *Suite) SetupSuite() {
 }
 
 func (s *Suite) SetupTest() {
-	name := s.T().Name()
-	if i := strings.LastIndex(name, "/"); i >= 0 {
-		name = name[i+1:]
-	}
-	s.ds = nil
-	if slices.Contains(s.cfg.SkipTests, name) {
-		s.T().Skip("not yet supported by this datastore")
-	}
-
 	s.dir = s.TempDir()
 	s.ds = s.newDataStore()
 }
@@ -2444,7 +2435,7 @@ func (s *Suite) TestSetNodeSelectorsUnderLoad() {
 func (s *Suite) TestCreateRegistrationEntry() {
 	now := time.Now().Unix()
 	var validRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
 		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, validRegistrationEntry)
@@ -2625,7 +2616,7 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 
 func (s *Suite) TestCreateInvalidRegistrationEntry() {
 	var invalidRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
 		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
@@ -4120,7 +4111,7 @@ func (s *Suite) TestDeleteRegistrationEntry() {
 func (s *Suite) TestListParentIDEntries() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4163,7 +4154,7 @@ func (s *Suite) TestListParentIDEntries() {
 func (s *Suite) TestListSelectorEntries() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4215,7 +4206,7 @@ func (s *Suite) TestListSelectorEntries() {
 func (s *Suite) TestListEntriesBySelectorSubset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4273,7 +4264,7 @@ func (s *Suite) TestListEntriesBySelectorSubset() {
 func (s *Suite) TestListSelectorEntriesSuperset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4327,7 +4318,7 @@ func (s *Suite) TestListSelectorEntriesSuperset() {
 func (s *Suite) TestListEntriesBySelectorMatchAny() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4396,7 +4387,7 @@ func (s *Suite) TestListEntriesBySelectorMatchAny() {
 func (s *Suite) TestListEntriesByFederatesWithExact() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4472,7 +4463,7 @@ func (s *Suite) TestListEntriesByFederatesWithExact() {
 func (s *Suite) TestListEntriesByFederatesWithSubset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4537,7 +4528,7 @@ func (s *Suite) TestListEntriesByFederatesWithSubset() {
 func (s *Suite) TestListEntriesByFederatesWithMatchAny() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4609,7 +4600,7 @@ func (s *Suite) TestListEntriesByFederatesWithMatchAny() {
 func (s *Suite) TestListEntriesByFederatesWithSuperset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(path.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -5988,13 +5979,12 @@ func (s *Suite) TestPruneCAJournalWithoutJournalID() {
 	s.Require().Zero(s.countCAJournals())
 }
 
-// getTestDataFromJSONFile reads a JSON fixture using a path relative to the
-// test binary's working directory. Go sets that directory to the package dir
-// of the package whose test invoked sqltest.Run — so any package consuming this
-// shared suite (e.g. sqlstore, and later sqlstore_v2) MUST provide its own
-// copy of the referenced testdata/ files under its own package directory.
+//go:embed testdata/*.json
+var testData embed.FS
+
+// getTestDataFromJSONFile reads a JSON fixture embedded from testdata/.
 func (s *Suite) getTestDataFromJSONFile(filePath string, jsonValue any) {
-	entriesJSON, err := os.ReadFile(filePath)
+	entriesJSON, err := testData.ReadFile(filePath)
 	s.Require().NoError(err)
 
 	err = json.Unmarshal(entriesJSON, &jsonValue)

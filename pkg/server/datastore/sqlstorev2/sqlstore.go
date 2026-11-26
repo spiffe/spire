@@ -231,12 +231,6 @@ func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Confi
 		raw.SetConnMaxLifetime(connMaxLifetime)
 	}
 
-	ds.log.WithFields(logrus.Fields{
-		telemetry.Type:     config.DBTypeConfig.DatabaseType,
-		telemetry.Version:  version,
-		telemetry.ReadOnly: isReadOnly,
-	}).Info("Connected to SQL database")
-
 	if ds.useServerTimestamps {
 		gdb.Config.NowFunc = func() time.Time {
 			return time.Now().Round(time.Second)
@@ -252,6 +246,12 @@ func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Confi
 			return nil, errors.Join(err, raw.Close())
 		}
 	}
+
+	ds.log.WithFields(logrus.Fields{
+		telemetry.Type:     config.DBTypeConfig.DatabaseType,
+		telemetry.Version:  version,
+		telemetry.ReadOnly: isReadOnly,
+	}).Info("Connected to SQL database")
 
 	return &sqlDB{
 		DB:               gdb,

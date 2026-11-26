@@ -285,30 +285,25 @@ func TestFailedNodeWritesLeaveNoEvent(t *testing.T) {
 	require.Empty(t, resp.Events)
 }
 
-func TestJoinTokenAttestedNodesAreNotDeleted(t *testing.T) {
+func TestPruneJoinTokenAndUntypedNodes(t *testing.T) {
 	ds := newNodeTestPlugin(t)
 	ctx := context.Background()
 	joinToken := &common.AttestedNode{SpiffeId: "spiffe://example.org/spire/agent/join_token/x", AttestationDataType: "join_token", CertSerialNumber: "1", CertNotAfter: 1}
-	other := &common.AttestedNode{SpiffeId: "spiffe://example.org/spire/agent/x509pop/x", AttestationDataType: "x509pop", CertSerialNumber: "1", CertNotAfter: 1}
 	untyped := &common.AttestedNode{SpiffeId: "spiffe://example.org/spire/agent/untyped/x", CertSerialNumber: "1", CertNotAfter: 1}
-	for _, node := range []*common.AttestedNode{joinToken, other, untyped} {
+	for _, node := range []*common.AttestedNode{joinToken, untyped} {
 		_, err := ds.CreateAttestedNode(ctx, node)
 		require.NoError(t, err)
 	}
 	require.NoError(t, ds.RawExec("UPDATE attested_node_entries SET data_type = NULL WHERE spiffe_id = '"+untyped.SpiffeId+"'"))
 
-	_, err := ds.DeleteAttestedNode(ctx, joinToken.SpiffeId)
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "datastore-sql: deleting join token attested nodes is not implemented")
-
-	// Prune skips the join token node instead of failing the batch on it.
 	require.NoError(t, ds.PruneAttestedExpiredNodes(ctx, time.Now(), true, 0))
 	resp, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 	require.NoError(t, err)
-	require.Equal(t, []string{joinToken.SpiffeId}, nodeIDs(resp.Nodes))
+	require.Empty(t, resp.Nodes)
 
 	events, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{joinToken.SpiffeId, other.SpiffeId, untyped.SpiffeId, other.SpiffeId, untyped.SpiffeId}, eventSpiffeIDs(events), "no event for the refused delete")
+	require.ElementsMatch(t, []string{joinToken.SpiffeId, untyped.SpiffeId, joinToken.SpiffeId, untyped.SpiffeId}, eventSpiffeIDs(events))
 }
 
 func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {

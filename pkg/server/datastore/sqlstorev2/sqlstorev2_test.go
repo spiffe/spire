@@ -36,51 +36,6 @@ func init() {
 
 var _ sqltest.DataStoreUnderTest = (*Plugin)(nil)
 
-// unimplementedTests lists the shared suite tests that call methods this
-// datastore does not implement.
-var unimplementedTests = []string{
-	"TestCountRegistrationEntries",
-	"TestDeleteAttestedNodeCascadesEntries",
-	"TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries",
-	"TestDeleteAttestedNodeNonJoinTokenDoesNotCascade",
-	"TestPruneAttestedExpiredNodesCascadesEntries",
-	"TestCreateRegistrationEntry",
-	"TestCreateOrReturnRegistrationEntry",
-	"TestCreateInvalidRegistrationEntry",
-	"TestFetchRegistrationEntriesWithOptionalFields",
-	"TestFetchRegistrationEntries",
-	"TestPruneRegistrationEntries",
-	"TestFetchInexistentRegistrationEntry",
-	"TestListRegistrationEntries",
-	"TestListRegistrationEntriesWhenCruftRowsExist",
-	"TestUpdateRegistrationEntry",
-	"TestUpdateRegistrationEntryWithStoreSvid",
-	"TestUpdateRegistrationEntryWithMask",
-	"TestDeleteRegistrationEntry",
-	"TestListParentIDEntries",
-	"TestListSelectorEntries",
-	"TestListEntriesBySelectorSubset",
-	"TestListSelectorEntriesSuperset",
-	"TestListEntriesBySelectorMatchAny",
-	"TestListEntriesByFederatesWithExact",
-	"TestListEntriesByFederatesWithSubset",
-	"TestListEntriesByFederatesWithMatchAny",
-	"TestListEntriesByFederatesWithSuperset",
-	"TestRegistrationEntriesFederatesWithAgainstMissingBundle",
-	"TestRegistrationEntriesFederatesWithSuccess",
-	"TestRegistrationEntriesFederatesWithMultipleBundles",
-	"TestRegistrationEntriesFederatesWithDuplicateTrustDomain",
-	"TestRegistrationEntriesWithoutFederatesWith",
-	// DeleteBundle is implemented, but these seed the bundle's federated
-	// entries through registration entry methods.
-	"TestDeleteBundleRestrictedByRegistrationEntries",
-	"TestDeleteBundleDeleteRegistrationEntries",
-	"TestDeleteBundleDissociateRegistrationEntries",
-	"TestListRegistrationEntryEvents",
-	"TestPruneRegistrationEntryEvents",
-	"TestRace",
-}
-
 // TestPlugin runs the shared datastore conformance suite against the
 // sqlstorev2 plugin.
 func TestPlugin(t *testing.T) {
@@ -93,7 +48,6 @@ func TestPlugin(t *testing.T) {
 		ROConnString:          cmp.Or(os.Getenv("SQLSTORE_TEST_RO_CONN_STRING"), TestROConnString),
 		ExpectedSchemaVersion: latestSchemaVersion,
 		ExpectedCodeVersion:   codeVersion.String(),
-		SkipTests:             unimplementedTests,
 	})
 }
 
