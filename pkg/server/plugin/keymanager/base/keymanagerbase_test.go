@@ -97,6 +97,25 @@ func TestSignDataHashAlgorithm(t *testing.T) {
 	}
 }
 
+func TestSignDataPSSOptionsWithMLDSAKey(t *testing.T) {
+	ctx := context.Background()
+	b := New(Config{})
+	_, err := b.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{KeyId: "id", KeyType: keymanagerv1.KeyType_ML_DSA_44})
+	require.NoError(t, err)
+
+	_, err = b.SignData(ctx, &keymanagerv1.SignDataRequest{
+		KeyId: "id",
+		Data:  []byte("DATA"),
+		SignerOpts: &keymanagerv1.SignDataRequest_PssOptions{
+			PssOptions: &keymanagerv1.SignDataRequest_PSSOptions{
+				HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				SaltLength:    32,
+			},
+		},
+	})
+	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "PSS options are not supported for ML-DSA keys")
+}
+
 func TestMakeKeyEntryFromMLDSAKey(t *testing.T) {
 	for params, keyType := range map[mldsa.Parameters]keymanagerv1.KeyType{
 		mldsa.MLDSA44(): keymanagerv1.KeyType_ML_DSA_44,

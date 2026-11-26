@@ -188,6 +188,9 @@ func (m *Base) signData(req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDa
 		if opts.PssOptions == nil {
 			return nil, status.Error(codes.InvalidArgument, "PSS options are nil")
 		}
+		if isMLDSA(entry.Type) {
+			return nil, status.Error(codes.InvalidArgument, "PSS options are not supported for ML-DSA keys")
+		}
 		if opts.PssOptions.HashAlgorithm == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM {
 			return nil, status.Error(codes.InvalidArgument, "hash algorithm in PSS options is required")
 		}
