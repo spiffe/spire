@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"io"
@@ -933,6 +934,18 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, 8443, c.Federation.BundleEndpoint.Address.Port)
 				require.Equal(t, 10*time.Minute, c.Federation.BundleEndpoint.RefreshHint)
 
+				require.Nil(t, c.Federation.BundleEndpoint.ACME)
+				require.NotNil(t, c.Federation.BundleEndpoint.DiskCertManager)
+			},
+		},
+		{
+			msg: "bundle endpoint has web profile with certs on disk and no file sync interval",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileHTTPSWebServingCertFileNoSyncIntervalTest(t),
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c.Federation.BundleEndpoint.ACME)
 				require.NotNil(t, c.Federation.BundleEndpoint.DiskCertManager)
 			},
@@ -2510,6 +2523,48 @@ func TestAgentTTL(t *testing.T) {
 	}
 }
 
+func TestBundleEndpointServingCertFileSyncInterval(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		config   *bundleEndpointConfig
+		expected string
+	}{
+		{
+			name:     "file_sync_interval is used when set",
+			config:   bundleEndpointProfileHTTPSWebServingCertFileTest(t),
+			expected: "5m0s",
+		},
+		{
+			name:     "file_sync_interval defaults to 1h when not set",
+			config:   bundleEndpointProfileHTTPSWebServingCertFileNoSyncIntervalTest(t),
+			expected: "1h0m0s",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			log, hook := test.NewNullLogger()
+			federationConfig := &server.FederationConfig{BundleEndpoint: &bundle.EndpointConfig{}}
+			require.NoError(t, setBundleEndpointConfigProfile(tt.config, t.TempDir(), log, federationConfig))
+			certManager := federationConfig.BundleEndpoint.DiskCertManager
+			require.NotNil(t, certManager)
+
+			// The cert manager does not expose its sync interval, but it logs
+			// the interval when it starts watching the files. Start it with a
+			// canceled context so that it returns right away.
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			certManager.WatchFileChanges(ctx)
+
+			spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Started watching certificate files",
+					Data:    logrus.Fields{"interval": tt.expected},
+				},
+			})
+		})
+	}
+}
+
 func bundleEndpointProfileACMEAndProfileTest(t *testing.T) *bundleEndpointConfig {
 	configString := `address = "0.0.0.0"
         port = 8443
@@ -2539,6 +2594,22 @@ func bundleEndpointProfileHTTPSWebServingCertFileTest(t *testing.T) *bundleEndpo
         		cert_file_path = "../../../../test/fixture/certs/svid.pem"
         		key_file_path = "../../../../test/fixture/certs/svid_key.pem"
         		file_sync_interval = "5m"
+        	}
+        }`
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
+
+func bundleEndpointProfileHTTPSWebServingCertFileNoSyncIntervalTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "https_web" {
+        	serving_cert_file {
+        		cert_file_path = "../../../../test/fixture/certs/svid.pem"
+        		key_file_path = "../../../../test/fixture/certs/svid_key.pem"
         	}
         }`
 	config := new(bundleEndpointConfig)
