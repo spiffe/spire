@@ -85,7 +85,7 @@ require (
 	github.com/smallstep/pkcs7 v0.2.3
 	github.com/spiffe/go-spiffe/v2 v2.9.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20260924193931-38b883fcd6d1
-	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20261110194242-a3969809a00e
+	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20261126140517-9428323afb59
 	github.com/stretchr/testify v1.12.1
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.10
@@ -342,6 +342,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-// TODO: remove replace once spire-plugin-sdk PR is merged and published
-replace github.com/spiffe/spire-plugin-sdk => github.com/MarcosDY/spire-plugin-sdk v0.0.0-20261125200045-c423505a185e
