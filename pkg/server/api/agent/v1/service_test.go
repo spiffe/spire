@@ -122,6 +122,7 @@ func TestCountAgents(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		count      int32
+		filter     *agentv1.CountAgentsRequest_Filter
 		resp       *agentv1.CountAgentsResponse
 		code       codes.Code
 		dsError    error
@@ -189,6 +190,52 @@ func TestCountAgents(t *testing.T) {
 			},
 		},
 		{
+			name:  "3 nodes, none expires before",
+			count: 3,
+			filter: &agentv1.CountAgentsRequest_Filter{
+				ByExpiresBefore: time.Now().Add(-time.Hour).Format("2006-01-02 15:04:05 -0700 -07"),
+			},
+			resp: &agentv1.CountAgentsResponse{Count: 0},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name:  "malformed expires before",
+			count: 3,
+			filter: &agentv1.CountAgentsRequest_Filter{
+				ByExpiresBefore: "2006-01-02T15:04:05Z",
+			},
+			code: codes.InvalidArgument,
+			err:  "failed to parse expires before",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to parse expires before",
+					Data: logrus.Fields{
+						logrus.ErrorKey: `parsing time "2006-01-02T15:04:05Z" as "2006-01-02 15:04:05 -0700 -07": cannot parse "T15:04:05Z" as " "`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `failed to parse expires before: parsing time "2006-01-02T15:04:05Z" as "2006-01-02 15:04:05 -0700 -07": cannot parse "T15:04:05Z" as " "`,
+					},
+				},
+			},
+		},
+		{
 			name:    "ds error",
 			code:    codes.Internal,
 			dsError: status.Error(codes.Internal, "some error"),
@@ -241,7 +288,7 @@ func TestCountAgents(t *testing.T) {
 				}
 
 				test.ds.SetNextError(tt.dsError)
-				resp, err := test.client.CountAgents(ctx, &agentv1.CountAgentsRequest{})
+				resp, err := test.client.CountAgents(ctx, &agentv1.CountAgentsRequest{Filter: tt.filter})
 
 				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 				if tt.err != "" {
@@ -848,6 +895,55 @@ func TestListAgents(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status: "success",
 						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name: "by expires before",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByExpiresBefore: time.Unix(notAfter, 0).Format("2006-01-02 15:04:05 -0700 -07"),
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name: "malformed expires before",
+			req: &agentv1.ListAgentsRequest{
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByExpiresBefore: "2006-01-02T15:04:05Z",
+				},
+			},
+			code: codes.InvalidArgument,
+			err:  "failed to parse expires before",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to parse expires before",
+					Data: logrus.Fields{
+						logrus.ErrorKey: `parsing time "2006-01-02T15:04:05Z" as "2006-01-02 15:04:05 -0700 -07": cannot parse "T15:04:05Z" as " "`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `failed to parse expires before: parsing time "2006-01-02T15:04:05Z" as "2006-01-02 15:04:05 -0700 -07": cannot parse "T15:04:05Z" as " "`,
 					},
 				},
 			},

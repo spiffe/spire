@@ -99,7 +99,11 @@ func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsReque
 		}
 
 		if filter.ByExpiresBefore != "" {
-			countReq.ByExpiresBefore, _ = time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
+			expiresBefore, err := time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
+			if err != nil {
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse expires before", err)
+			}
+			countReq.ByExpiresBefore = expiresBefore
 		}
 
 		if filter.BySelectorMatch != nil {
@@ -150,7 +154,11 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 		}
 
 		if filter.ByExpiresBefore != "" {
-			listReq.ByExpiresBefore, _ = time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
+			expiresBefore, err := time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
+			if err != nil {
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse expires before", err)
+			}
+			listReq.ByExpiresBefore = expiresBefore
 		}
 
 		if filter.BySelectorMatch != nil {
