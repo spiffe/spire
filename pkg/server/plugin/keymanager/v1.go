@@ -174,8 +174,8 @@ func (s *v1Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 			},
 		}
 	case *mldsa.Options:
-		// Context can't be sent to plugins.
-		if opts.Context != "" {
+		// Context can't be sent to plugins. A nil *mldsa.Options means no context.
+		if opts != nil && opts.Context != "" {
 			return nil, status.Error(codes.InvalidArgument, "ML-DSA context is not supported")
 		}
 		req.SignerOpts = &keymanagerv1.SignDataRequest_HashAlgorithm{}

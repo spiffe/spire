@@ -339,6 +339,13 @@ func TestV1SignData(t *testing.T) {
 			expectMessage: "ML-DSA keys sign the full message; hash algorithm must not be set",
 		},
 		{
+			test:             "success with nil ML-DSA options",
+			signerOpts:       (*mldsa.Options)(nil),
+			fingerprint:      "foo1",
+			signature:        "SIGNATURE",
+			expectSignerOpts: noHashAlgorithm,
+		},
+		{
 			test:          "ML-DSA context not supported",
 			signerOpts:    &mldsa.Options{Context: "ctx"},
 			fingerprint:   "foo1",
