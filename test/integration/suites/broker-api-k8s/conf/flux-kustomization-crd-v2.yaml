@@ -1,0 +1,31 @@
+# Same Kustomization CRD as flux-kustomization-crd.yaml, but with v1 no longer
+# served and v2 as the new storage/preferred version. Used to verify that the
+# agent's cached informer transitions to the newly served version.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kustomizations.kustomize.toolkit.fluxcd.io
+spec:
+  group: kustomize.toolkit.fluxcd.io
+  scope: Namespaced
+  names:
+    kind: Kustomization
+    plural: kustomizations
+    singular: kustomization
+    shortNames:
+      - ks
+  versions:
+    - name: v1
+      served: false
+      storage: false
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+    - name: v2
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true

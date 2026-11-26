@@ -614,17 +614,18 @@ func (s *Suite) TestConfigure() {
 	s.writeCert("some-other-ca", s.kubeletCert)
 
 	type config struct {
-		Insecure              bool
-		KubeletDisabled       bool
-		VerifyKubelet         bool
-		HasNodeName           bool
-		Token                 string
-		KubeletURL            string
-		MaxPollAttempts       int
-		PollRetryInterval     time.Duration
-		ReloadInterval        time.Duration
-		SigstoreConfig        *sigstore.Config
-		APIServerCacheEnabled bool
+		Insecure                      bool
+		KubeletDisabled               bool
+		VerifyKubelet                 bool
+		HasNodeName                   bool
+		Token                         string
+		KubeletURL                    string
+		MaxPollAttempts               int
+		PollRetryInterval             time.Duration
+		ReloadInterval                time.Duration
+		SigstoreConfig                *sigstore.Config
+		APIServerCacheEnabled         bool
+		APIServerCacheRefreshInterval time.Duration
 	}
 
 	testCases := []struct {
@@ -763,6 +764,47 @@ func (s *Suite) TestConfigure() {
 				ReloadInterval:        defaultReloadInterval,
 				APIServerCacheEnabled: true,
 			},
+		},
+		{
+			name:        "API server cache refresh interval",
+			trustDomain: "example.org",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					api_server {
+						cache {
+							enabled = true
+							rest_mapper_refresh_interval = "2m"
+						}
+					}
+				}
+			`,
+			config: &config{
+				Insecure:                      true,
+				KubeletURL:                    "http://127.0.0.1:12345",
+				MaxPollAttempts:               defaultMaxPollAttempts,
+				PollRetryInterval:             defaultPollRetryInterval,
+				ReloadInterval:                defaultReloadInterval,
+				APIServerCacheEnabled:         true,
+				APIServerCacheRefreshInterval: 2 * time.Minute,
+			},
+		},
+		{
+			name:        "invalid API server cache refresh interval",
+			trustDomain: "example.org",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					api_server {
+						cache {
+							enabled = true
+							rest_mapper_refresh_interval = "blah"
+						}
+					}
+				}
+			`,
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to parse REST mapper refresh interval",
 		},
 		{
 			name:        "top-level API server cache is rejected",
@@ -947,6 +989,11 @@ func (s *Suite) TestConfigure() {
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.podListFetcherConfig.reloadInterval)
 			assert.Equal(t, testCase.config.APIServerCacheEnabled, c.APIServerCacheEnabled)
+			expectedRefreshInterval := testCase.config.APIServerCacheRefreshInterval
+			if expectedRefreshInterval == 0 {
+				expectedRefreshInterval = defaultAPIServerCacheRefreshInterval
+			}
+			assert.Equal(t, expectedRefreshInterval, c.APIServerCacheRefreshInterval)
 			if testCase.config.KubeletDisabled {
 				assert.Nil(t, p.podListFetcher.client)
 				assert.Nil(t, p.podListFetcher.config)
@@ -1637,6 +1684,15 @@ func fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(allowed b
 		builder = builder.WithRESTMapper(mapper)
 	}
 	return builder.Build()
+}
+
+type recordingInformerRemover struct {
+	removed []schema.GroupVersionKind
+}
+
+func (r *recordingInformerRemover) RemoveInformer(_ context.Context, obj client.Object) error {
+	r.removed = append(r.removed, obj.GetObjectKind().GroupVersionKind())
+	return nil
 }
 
 func fakeKubeMetadataClient(objects ...*metav1.PartialObjectMetadata) client.Client {
@@ -2823,6 +2879,99 @@ func (s *Suite) TestAttestReferenceGenericObjectDoesNotRetryWithinCooldown() {
 	s.Require().Equal(codes.NotFound, status.Code(err))
 	s.Require().Equal(1, refreshes, "mapper should not be refreshed again within the cooldown")
 	s.Require().Equal(3, gets, "lookup should not be retried within the cooldown")
+}
+
+func (s *Suite) TestTransitionKubeInformer() {
+	p := s.newPlugin()
+	cache := &recordingInformerRemover{}
+	p.kubeCache = cache
+	p.kubeInformerGVKs = make(map[schema.GroupResource]kubeInformerMapping)
+
+	gr := schema.GroupResource{Group: "example.org", Resource: "widgets"}
+	oldGVK := schema.GroupVersionKind{Group: gr.Group, Version: "v1beta1", Kind: "Widget"}
+	newGVK := schema.GroupVersionKind{Group: gr.Group, Version: "v1", Kind: "Widget"}
+
+	p.transitionKubeInformer(s.T().Context(), gr, oldGVK, 1)
+	s.Require().Empty(cache.removed)
+
+	p.transitionKubeInformer(s.T().Context(), gr, oldGVK, 1)
+	s.Require().Empty(cache.removed)
+
+	p.transitionKubeInformer(s.T().Context(), gr, newGVK, 2)
+	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
+
+	// A request that started before the mapper refresh must not move the
+	// informer back to the previous version.
+	p.transitionKubeInformer(s.T().Context(), gr, oldGVK, 1)
+	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
+}
+
+func (s *Suite) TestAttestByObjectReferenceRefreshesCachedVersion() {
+	s.startInsecureKubelet()
+
+	group := "example.org"
+	oldGVK := schema.GroupVersionKind{Group: group, Version: "v1beta1", Kind: "Widget"}
+	newGVK := schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Widget"}
+
+	now := time.Unix(0, 0)
+	refreshes := 0
+	mapper := newRefreshableRESTMapper(testRESTMapperFor(oldGVK), func() (meta.RESTMapper, error) {
+		refreshes++
+		return testRESTMapperFor(newGVK), nil
+	})
+	mapper.now = func() time.Time { return now }
+	mapper.lastRefresh = now
+
+	oldObj := &metav1.PartialObjectMetadata{
+		Name:      "widget-a",
+		Namespace: "default",
+		UID:       "widget-uid",
+	}
+	oldObj.SetGroupVersionKind(oldGVK)
+	newObj := oldObj.DeepCopy()
+	newObj.SetGroupVersionKind(newGVK)
+
+	kubeClient := fakeKubeClientWithSubjectAccessReviewAndRESTMapper(true, nil, mapper, oldObj, newObj)
+	p := s.loadRawPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		experimental {
+			api_server {
+				cache {
+					enabled = true
+					rest_mapper_refresh_interval = "1m"
+				}
+			}
+		}
+	`, s.kubeletPort()), kubeClient)
+
+	cache := &recordingInformerRemover{}
+	p.kubeCache = cache
+	p.kubeInformerGVKs = make(map[schema.GroupResource]kubeInformerMapping)
+
+	ref := &broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{
+			Plural: "widgets",
+			Group:  group,
+		},
+		Key: &broker.KubernetesObjectKey{
+			Namespace: "default",
+			Name:      "widget-a",
+		},
+	}
+
+	result, err := p.attestByObjectReference(s.T().Context(), ref)
+	s.Require().NoError(err)
+	s.Require().Contains(result.Response.SelectorValues, "version:v1beta1")
+	s.Require().Empty(cache.removed)
+
+	now = now.Add(2 * time.Minute)
+	result, err = p.attestByObjectReference(s.T().Context(), ref)
+	s.Require().NoError(err)
+	s.Require().Equal(1, refreshes)
+	s.Require().Contains(result.Response.SelectorValues, "version:v1")
+	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
 }
 
 func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
