@@ -624,10 +624,10 @@ func deleteJoinTokenAliasEntries(tx *gorm.DB, spiffeID string, log logrus.FieldL
 	if err != nil {
 		return err
 	}
-	// Matched in Go: MySQL would compare the selector value ignoring case.
+	// Matched in Go against the stored parent ID: MySQL compares ignoring case.
 	var aliases []*common.RegistrationEntry
 	for _, e := range children {
-		if len(e.Selectors) == 1 && e.Selectors[0].Type == "spiffe_id" && e.Selectors[0].Value == spiffeID {
+		if len(e.Selectors) == 1 && e.Selectors[0].Type == "spiffe_id" && e.Selectors[0].Value == e.ParentId {
 			aliases = append(aliases, e)
 		}
 	}

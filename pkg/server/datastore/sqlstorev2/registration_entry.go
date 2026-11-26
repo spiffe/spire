@@ -705,9 +705,14 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	}
 	model.RevisionNumber++
 
-	if err := tx.Model(&model).Select("store_svid", "spiffe_id", "parent_id", "ttl", "admin", "downstream", "expiry", "jwt_svid_ttl", "hint", "additional_attributes", "revision_number", "updated_at").
-		Omit(clause.Associations).Updates(&model).Error; err != nil {
-		return nil, sqlcommon.NewWrappedSQLError(err)
+	res := tx.Model(&model).Select("store_svid", "spiffe_id", "parent_id", "ttl", "admin", "downstream", "expiry", "jwt_svid_ttl", "hint", "additional_attributes", "revision_number", "updated_at").
+		Omit(clause.Associations).Updates(&model)
+	if res.Error != nil {
+		return nil, sqlcommon.NewWrappedSQLError(res.Error)
+	}
+	// Deleted since it was read: writing its children would leave orphan rows.
+	if res.RowsAffected == 0 {
+		return nil, sqlcommon.NewWrappedSQLError(gorm.ErrRecordNotFound)
 	}
 
 	setSelectors, setDNSNames, setFederatesWith := all || mask.Selectors, all || mask.DnsNames, all || mask.FederatesWith
@@ -766,15 +771,14 @@ func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationE
 	return entries[0], nil
 }
 
-// deleteEntries deletes the given entries and their child rows.
+// deleteEntries deletes the given entries and their child rows. The entry rows
+// go first, the same lock order as updateRegistrationEntry, so the two cannot
+// deadlock.
 func deleteEntries(tx *gorm.DB, ids []uint) error {
-	if err := deleteEntryChildren(tx, ids, true, true, true); err != nil {
-		return err
-	}
 	if err := tx.Where("id IN ?", ids).Delete(&RegisteredEntry{}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
-	return nil
+	return deleteEntryChildren(tx, ids, true, true, true)
 }
 
 func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, log logrus.FieldLogger) error {

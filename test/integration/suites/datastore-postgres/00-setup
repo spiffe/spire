@@ -12,8 +12,5 @@ log-debug "building postgres test harness..."
 log-debug "building postgres test harness for the gorm v2 datastore..."
 (cd "${REPODIR}/pkg/server/datastore/sqlstorev2"; go test -c -o "${DIR}"/postgres-v2.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstorev2.TestDialect=postgres")
 
-log-debug "copying over test data..."
-cp -r "${PKGDIR}"/testdata .
-
 log-debug "pulling postgres docker images..."
 retry docker compose pull

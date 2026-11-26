@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -304,6 +305,29 @@ func TestPruneJoinTokenAndUntypedNodes(t *testing.T) {
 	events, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{joinToken.SpiffeId, untyped.SpiffeId, joinToken.SpiffeId, untyped.SpiffeId}, eventSpiffeIDs(events))
+}
+
+func TestDeleteJoinTokenNodeCascadesWithOtherCase(t *testing.T) {
+	if TestDialect != "mysql" {
+		t.Skip("only MySQL finds the node by an ID in another case")
+	}
+	ds := newNodeTestPlugin(t)
+	ctx := context.Background()
+	nodeID := "spiffe://example.org/spire/agent/join_token/Mixed"
+	_, err := ds.CreateAttestedNode(ctx, &common.AttestedNode{SpiffeId: nodeID, AttestationDataType: "join_token", CertSerialNumber: "1", CertNotAfter: 1})
+	require.NoError(t, err)
+	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId:  nodeID,
+		SpiffeId:  "spiffe://example.org/host",
+		Selectors: []*common.Selector{{Type: "spiffe_id", Value: nodeID}},
+	})
+	require.NoError(t, err)
+
+	_, err = ds.DeleteAttestedNode(ctx, strings.ToLower(nodeID))
+	require.NoError(t, err)
+	count, err := ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	require.NoError(t, err)
+	require.Zero(t, count)
 }
 
 func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
