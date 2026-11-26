@@ -920,6 +920,32 @@ func TestListAgents(t *testing.T) {
 			},
 		},
 		{
+			name: "by expires before, all expire before",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByExpiresBefore: time.Unix(notAfter+1, 0).Format("2006-01-02 15:04:05 -0700 -07"),
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{
+					{Id: api.ProtoFromID(node1ID)},
+					{Id: api.ProtoFromID(node2ID)},
+					{Id: api.ProtoFromID(node3ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
 			name: "malformed expires before",
 			req: &agentv1.ListAgentsRequest{
 				Filter: &agentv1.ListAgentsRequest_Filter{
