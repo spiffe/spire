@@ -63,24 +63,18 @@ func subjectPublicKeyBytes(pubKey any) ([]byte, error) {
 }
 
 // sha256SubjectKeyID generates a SubjectKeyId using method 1 in RFC 7093,
-// Section 2:
-//
-//	1) The keyIdentifier is composed of the leftmost 160-bits of the
-//	SHA-256 hash of the value of the BIT STRING subjectPublicKey
-//	(excluding the tag, length, and number of unused bits).
-//
-// Borrowed with love from Go std lib crypto/x509 under the BSD 3-Clause license.
+// Section 2: the leftmost 160 bits of the SHA-256 hash of the value of the
+// BIT STRING subjectPublicKey (excluding the tag, length, and number of
+// unused bits). Borrowed with love from Go std lib crypto/x509 under the
+// BSD 3-Clause license.
 func sha256SubjectKeyID(keyBytes []byte) []byte {
 	h := sha256.Sum256(keyBytes)
 	return h[:20]
 }
 
 // sha1SubjectKeyID generates a SubjectKeyId using method 1 in RFC 5280,
-// Section 4.2.1.2:
-//
-//	(1) The keyIdentifier is composed of the 160-bit SHA-1 hash of the
-//	value of the BIT STRING subjectPublicKey (excluding the tag,
-//	length, and number of unused bits).
+// Section 4.2.1.2: the 160-bit SHA-1 hash of the value of the BIT STRING
+// subjectPublicKey (excluding the tag, length, and number of unused bits).
 func sha1SubjectKeyID(keyBytes []byte) []byte {
 	h := sha1.Sum(keyBytes) //nolint: gosec // usage of SHA1 is according to RFC 5280
 	return h[:]
