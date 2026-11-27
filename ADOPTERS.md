@@ -27,6 +27,7 @@ SPIFFE and SPIRE are being used by numerous other companies, both large and smal
 * Cisco
 * Decipher Technology Studios
 * F5 Networks
+* goat (USAREUR-AF)
 * HashiCorp
 * Hewlett Packard Enterprise
 * Intel
