@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
@@ -338,4 +339,41 @@ func openStorage(t *testing.T, dir string) storage.Storage {
 	sto, err := storage.Open(dir)
 	require.NoError(t, err)
 	return sto
+}
+
+// TestSetSuccessWhenNotBootstrapping covers the case where the agent already
+// has a cached trust bundle and attests without a bootstrap in progress (for
+// example on a normal restart). In that state the start time is unset, so
+// marking success must be a no-op: it must not log a success duration measured
+// from the zero time (which renders as ~292 years, see issue #7399) and it must
+// not overwrite the cached trust bundle with an empty one.
+func TestSetSuccessWhenNotBootstrapping(t *testing.T) {
+	certs, err := pemutil.LoadCertificates(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
+	require.NoError(t, err)
+	require.NotEmpty(t, certs)
+
+	dir := spiretest.TempDir(t)
+	sto := openStorage(t, dir)
+
+	// Seed the state left behind by a previous successful bootstrap: a cached
+	// bundle, UseRebootstrap, and an unset (zero) start time.
+	require.NoError(t, sto.StoreBundle(certs))
+	require.NoError(t, sto.StoreBootstrapState(UseRebootstrap, time.Time{}, 0))
+
+	log, hook := test.NewNullLogger()
+	tbs := New(&Config{}, log)
+	tbs.SetMetrics(&telemetry.Blackhole{})
+	require.NoError(t, tbs.SetStorage(sto))
+
+	require.NoError(t, tbs.SetSuccess())
+
+	// The cached bundle must survive.
+	cached, err := sto.LoadBundle()
+	require.NoError(t, err)
+	require.Len(t, cached, len(certs))
+
+	// No spurious success line must be logged.
+	for _, entry := range hook.AllEntries() {
+		require.NotContains(t, entry.Message, "Success after")
+	}
 }
