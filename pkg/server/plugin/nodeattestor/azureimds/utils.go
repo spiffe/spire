@@ -28,6 +28,8 @@ var (
 	reTenantId               = regexp.MustCompile(`^https://sts.windows.net/([^/]+)/$`)
 	// VMSS name validation: alphanumeric, underscores, periods, and hyphens
 	reVMSSNameAllowedChars = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	// Resource group name validation: alphanumeric, underscore, parentheses, hyphen, period
+	reResourceGroupNameAllowedChars = regexp.MustCompile(`^[a-zA-Z0-9._\-()]+$`)
 	// Used to make sure token is valid for credential assertion
 	allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
 		jose.RS256,
@@ -173,6 +175,32 @@ func validateVMSSName(name string) error {
 	lastChar := name[len(name)-1]
 	if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= 'A' && lastChar <= 'Z') || (lastChar >= '0' && lastChar <= '9') || lastChar == '_') {
 		return errors.New("VMSS name must end with an alphanumeric character or an underscore")
+	}
+
+	return nil
+}
+
+// validateResourceGroupName validates an Azure resource group name according to Azure naming rules:
+// - Length: Must be between 1 and 90 characters long
+// - Allowed characters: Alphanumeric, underscore, parentheses, hyphen, and period
+// - End: Must not end with a period
+func validateResourceGroupName(name string) error {
+	const minLength = 1
+	const maxLength = 90
+
+	if len(name) < minLength {
+		return fmt.Errorf("resource group name must be at least %d character(s) long, got %d", minLength, len(name))
+	}
+	if len(name) > maxLength {
+		return fmt.Errorf("resource group name must be at most %d characters long, got %d", maxLength, len(name))
+	}
+
+	if !reResourceGroupNameAllowedChars.MatchString(name) {
+		return errors.New("resource group name can only contain alphanumeric characters, underscores, parentheses, hyphens, and periods")
+	}
+
+	if name[len(name)-1] == '.' {
+		return errors.New("resource group name must not end with a period")
 	}
 
 	return nil

@@ -102,6 +102,28 @@ func (s *IMDSAttestorSuite) TestAidAttestationWithVMSS() {
 	s.Require().NoError(err)
 }
 
+func (s *IMDSAttestorSuite) TestAidAttestationIncludesLocatorMetadata() {
+	s.computeMetadata.Compute.ResourceID = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"
+	s.computeMetadata.Compute.VMScaleSetName = "flex-ss"
+
+	nonce := []byte("test-nonce")
+	expectedPayload := []byte("non_empty_payload")
+
+	attestor := s.loadAttestor(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(`tenant_domain = "example.com"`),
+	)
+
+	stream := streamBuilder.
+		ExpectThenChallenge(expectedPayload, nonce).
+		ExpectAndBuild(s.makeExpectedChallengeResponse())
+
+	err := attestor.Attest(context.Background(), stream)
+	s.Require().NoError(err)
+}
+
 func (s *IMDSAttestorSuite) TestAidAttestationFailedToFetchAttestedDocument() {
 	s.attestedDocErr = errors.New("fetch failed")
 
@@ -250,6 +272,12 @@ func (s *IMDSAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattes
 func (s *IMDSAttestorSuite) makeExpectedChallengeResponse() []byte {
 	md := azure.AgentUntrustedMetadata{
 		AgentDomain: "example.com",
+	}
+	if s.computeMetadata.Compute.ResourceGroupName != "" {
+		md.ResourceGroupName = &s.computeMetadata.Compute.ResourceGroupName
+	}
+	if s.computeMetadata.Compute.ResourceID != "" {
+		md.VMResourceID = &s.computeMetadata.Compute.ResourceID
 	}
 	if s.computeMetadata.Compute.VMScaleSetName != "" {
 		md.VMSSName = &s.computeMetadata.Compute.VMScaleSetName
