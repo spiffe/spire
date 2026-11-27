@@ -3,10 +3,10 @@ name: assign-reviewer-review-capture
 # Unprivileged half of the review ball-in-court update.
 #
 # The pull_request_review token is read-only for PRs from forks, so the
-# assignee write cannot happen here. This workflow only reads the review event
-# and writes a small artifact with the data the privileged
-# assign-reviewer-review-apply workflow (triggered via workflow_run) needs to
-# move the assignee with a write token.
+# assignee write cannot happen here. This workflow only records the review
+# event in an artifact, which the privileged assign-reviewer-review-apply
+# workflow (triggered via workflow_run) uses to move the assignee with a
+# write token. The logic lives in https://github.com/spiffe/assign-reviewer.
 #
 # GitHub holds this run for approval on a first-time contributor's pull
 # request and creates none while the pull request has a merge conflict. The
@@ -16,10 +16,11 @@ name: assign-reviewer-review-capture
 # It never writes to the repository and never checks out or runs any PR code.
 # Note that pull_request_review runs the PR's own copy of this workflow, so a
 # fork PR can run a modified version of this file. That gains no privileges
-# (the token stays read-only), but it means the artifact contents are not
-# trusted: the apply workflow validates every field, binds the artifact to the
-# triggering PR's head SHA, and confirms via the API that the claimed review
-# exists before acting on it.
+# (the token stays read-only), and the apply side treats the artifact as
+# untrusted.
+#
+# The name above is referenced by the workflow_run filter in
+# assign_reviewer_review_apply.yaml, so the two must change together.
 
 on:
   pull_request_review:
@@ -32,21 +33,4 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const fs = require('fs');
-            const review = context.payload.review;
-            const data = {
-              pr_number: context.payload.pull_request.number,
-              review_state: (review.state || '').toLowerCase(),
-              submitter: review.user.login,
-            };
-            fs.writeFileSync('review.json', JSON.stringify(data));
-            core.info(`Captured ${data.review_state} review by ${data.submitter} on PR #${data.pr_number}.`);
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: assign-reviewer-review
-          path: review.json
-          retention-days: 1
-          if-no-files-found: error # fail loudly rather than produce no artifact
+      - uses: spiffe/assign-reviewer/capture@438a6a3984a58cf27b76d459b5399415b0a0d9b4 # main
