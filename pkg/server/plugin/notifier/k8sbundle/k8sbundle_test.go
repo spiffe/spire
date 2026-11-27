@@ -314,7 +314,7 @@ kube_config_file_path = "/some/file/path"
 		require.NoError(t, err)
 
 		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
-		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		require.Equal(t, codes.AlreadyExists, status.Code(err))
 		updateDone <- struct{}{}
 	}))
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -342,7 +342,7 @@ kube_config_file_path = "/some/file/path"
 		require.NoError(t, err)
 
 		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
-		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		require.Equal(t, codes.AlreadyExists, status.Code(err))
 		updateDone <- struct{}{}
 	}))
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -387,7 +387,7 @@ kube_config_file_path = "/some/file/path"
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration: finalConfig,
+		Configuration: finalConfig,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -524,7 +524,7 @@ func TestConfigureWithMalformedConfiguration(t *testing.T) {
 	test := setupTest(t, withNoConfigure())
 
 	_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
-		HclConfiguration:  configuration,
+		Configuration:     configuration,
 		CoreConfiguration: coreConfig,
 	})
 
@@ -681,7 +681,7 @@ func TestConfigure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t, withNoConfigure())
 			_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
-				HclConfiguration:  tt.configuration,
+				Configuration:     tt.configuration,
 				CoreConfiguration: coreConfig,
 			})
 
@@ -976,7 +976,7 @@ func setupTest(t *testing.T, options ...testOption) *test {
 
 	config := new(Configuration)
 	err := hcl.Decode(&config, args.plainConfig)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	raw := New()
 	notifier := new(notifier.V1)

@@ -40,6 +40,8 @@ The following table outlines the configuration options for SPIRE agent. These ma
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
+YAML configuration files are also supported as an experimental feature. Please see [YAML Configuration](yaml_configuration.md) for details, including the requirements for external plugins.
+
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like join tokens.
 
@@ -115,6 +117,7 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `sync_interval`                | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
 | `require_pq_kem`               | Require post-quantum-safe KEM on outbound gRPC and terminating listeners.                                                                                                           | false                   |
 | `enable_wit_svids`             | Mint WIT-SVIDs and serve them over the Workload API                                                                                                                                 | false                   |
+| `enable_yaml_config`           | Must be set to true to use a YAML configuration file; only available in YAML. See [YAML Configuration](yaml_configuration.md).                                                      | false                   |
 | `wit_svid_cache_max_size`      | Soft limit of max number of WIT-SVIDs that would be stored in LRU cache. Only used when WIT-SVIDs are enabled                                                                       | 1000                    |
 | `jwt_svid_cache_hit_timeout`   | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
 | `ratelimit`                    | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
@@ -263,7 +266,7 @@ There are two cases where this can not happen and Server Attestation must be per
 
 The first case is when bootstrapping a new agent. It's never securely talked to a SPIRE Server, so it can not download up to date trust bundles.
 
-The second case is when trust is lost and must be reestablished, known as Reboostrapping. This can happen if an agent was unable to contact a server for too long that its trust bundle is too far out of date, or the server needed to be reinstalled in a way that couldn't allow continuity in the trust bundle.
+The second case is when trust is lost and must be reestablished, known as Rebootstrapping. This can happen if an agent was unable to contact a server for too long that its trust bundle is too far out of date, or the server needed to be reinstalled in a way that couldn't allow continuity in the trust bundle.
 
 ### Configuring the source for Server Attestation
 
@@ -771,6 +774,17 @@ its plugin-level `experimental.broker` block is required for every reference typ
 `KubernetesObjectReference`. Set `experimental.broker.access_policy = "permissive"` to
 skip those checks. The setting is required; there is no default.
 
+While an X.509-SVID subscription is open, the agent periodically re-attests
+the workload reference: every 10 minutes by default, with 10% jitter. Both
+are configurable with `reattest_interval` and `reattest_jitter` in the
+`broker` block; `reattest_interval` must be at least 1 minute. This makes the
+stream follow selector changes when the same
+reference resolves differently over time, such as a pod recreated with a new
+UID or different labels, and terminates the stream with
+`NotFound`/`PermissionDenied` once the referenced object no longer exists or is
+no longer entitled. JWT-SVID fetches are unary and therefore re-attest the
+reference on every call.
+
 ### Transport and authentication
 
 The Broker API is gated by mutual TLS using X.509-SVIDs. A broker is
@@ -815,8 +829,10 @@ agent {
     ...
     experimental {
         broker {
-            socket_path  = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
-            bind_address = "0.0.0.0:8443"                           # optional TCP
+            socket_path       = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
+            bind_address      = "0.0.0.0:8443"                           # optional TCP
+            reattest_interval = "10m"                                    # default
+            reattest_jitter   = 0.1                                      # default
 
             brokers = [
                 {

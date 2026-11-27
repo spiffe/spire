@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -28,7 +27,7 @@ func TestBundle(t *testing.T) {
 
 		sto := openStorage(t, dir)
 		actual, err := sto.LoadBundle()
-		require.True(t, errors.Is(err, ErrNotCached))
+		require.ErrorIs(t, err, ErrNotCached)
 		require.Nil(t, actual)
 	})
 
@@ -62,7 +61,7 @@ func TestSVID(t *testing.T) {
 
 		sto := openStorage(t, dir)
 		actual, reattestable, err := sto.LoadSVID()
-		require.True(t, errors.Is(err, ErrNotCached))
+		require.ErrorIs(t, err, ErrNotCached)
 		require.Nil(t, actual)
 		require.False(t, reattestable)
 	})
@@ -99,7 +98,7 @@ func TestSVID(t *testing.T) {
 		require.NoError(t, sto.DeleteSVID())
 
 		actual, reattestable, err := sto.LoadSVID()
-		require.True(t, errors.Is(err, ErrNotCached))
+		require.ErrorIs(t, err, ErrNotCached)
 		require.Nil(t, actual)
 		require.False(t, reattestable)
 	})
@@ -112,7 +111,7 @@ func TestSVID(t *testing.T) {
 		require.NoError(t, sto.DeleteSVID())
 
 		actual, reattestable, err := sto.LoadSVID()
-		require.True(t, errors.Is(err, ErrNotCached))
+		require.ErrorIs(t, err, ErrNotCached)
 		require.Nil(t, actual)
 		require.False(t, reattestable)
 	})
@@ -128,7 +127,7 @@ func TestSVID(t *testing.T) {
 
 		sto = openStorage(t, dir)
 		actual, reattestable, err := sto.LoadSVID()
-		require.True(t, errors.Is(err, ErrNotCached))
+		require.ErrorIs(t, err, ErrNotCached)
 		require.Nil(t, actual)
 		require.False(t, reattestable)
 	})

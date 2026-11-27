@@ -429,3 +429,60 @@ func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expec
 		}
 	}
 }
+
+// uncappedSVIDServer is a fake server that, like the real one, issues
+// JWT-SVIDs that expire exactly as requested (with one second precision) when
+// nothing caps their lifetime.
+type uncappedSVIDServer struct {
+	svidv1.SVIDServer
+
+	signer jose.Signer
+}
+
+func (s *uncappedSVIDServer) MintJWTSVID(_ context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
+	expiry := time.Now().Add(time.Duration(req.Ttl) * time.Second)
+	token, err := jwt.Signed(s.signer).Claims(jwt.Claims{
+		Expiry: jwt.NewNumericDate(expiry),
+	}).Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return &svidv1.MintJWTSVIDResponse{
+		Svid: &types.JWTSVID{
+			Token:     token,
+			ExpiresAt: expiry.Unix(),
+		},
+	}, nil
+}
+
+func TestMintRunDoesNotWarnWhenTTLIsNotCapped(t *testing.T) {
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       testKey,
+	}, nil)
+	require.NoError(t, err)
+
+	server := &uncappedSVIDServer{signer: signer}
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
+		svidv1.RegisterSVIDServer(s, server)
+	})
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd := newMintCommand(&common_cli.Env{
+		Stdin:   new(bytes.Buffer),
+		Stdout:  stdout,
+		Stderr:  stderr,
+		BaseDir: spiretest.TempDir(t),
+	})
+
+	code := cmd.Run([]string{
+		clitest.AddrArg, clitest.GetAddr(addr),
+		"-spiffeID", "spiffe://domain.test/workload",
+		"-audience", "AUDIENCE",
+		"-ttl", "1m",
+	})
+
+	assert.Equal(t, 0, code, "exit code does not match")
+	assert.Empty(t, stderr.String(), "stderr does not match")
+}

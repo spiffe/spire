@@ -18,7 +18,6 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -27,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -78,15 +78,15 @@ func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 }
 
 type TenantConfig struct {
-	ResourceID     string `hcl:"resource_id" json:"resource_id"`
-	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
-	AppID          string `hcl:"app_id" json:"app_id"`
-	AppSecret      string `hcl:"app_secret" json:"app_secret"`
+	ResourceID     string `hcl:"resource_id" json:"resource_id" yaml:"resource_id"`
+	SubscriptionID string `hcl:"subscription_id" json:"subscription_id" yaml:"subscription_id"`
+	AppID          string `hcl:"app_id" json:"app_id" yaml:"app_id"`
+	AppSecret      string `hcl:"app_secret" json:"app_secret" yaml:"app_secret"`
 }
 
 type MSIAttestorConfig struct {
-	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
-	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template"`
+	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants" yaml:"tenants"`
+	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template" yaml:"agent_path_template"`
 }
 
 type tenantConfig struct {
@@ -100,10 +100,10 @@ type msiAttestorConfig struct {
 	idPathTemplate *agentpathtemplate.Template
 }
 
-func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *msiAttestorConfig {
+func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *msiAttestorConfig {
 	newConfig := new(MSIAttestorConfig)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
@@ -123,7 +123,7 @@ func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 
 		// Use tenant-specific credentials for resolving selectors
 		switch {
-		case tenant.SubscriptionID != "", tenant.AppID != "", tenant.AppSecret != "":
+		case tenant.AppID != "", tenant.AppSecret != "":
 			if tenant.SubscriptionID == "" {
 				status.ReportErrorf("misconfigured tenant %q: missing subscription id", tenantID)
 			}
@@ -145,15 +145,25 @@ func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 			}
 
 		default:
-			instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
-			if err != nil {
-				status.ReportError(err.Error())
+			// Without app credentials, use the default credential (e.g.
+			// managed identity or workload identity). The subscription is
+			// taken from the configuration when set, which avoids depending
+			// on the VM instance metadata service. Otherwise it is discovered
+			// from the instance metadata.
+			subscriptionID := tenant.SubscriptionID
+			if subscriptionID == "" {
+				instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
+				if err != nil {
+					status.ReportErrorf("unable to discover subscription id for tenant %q from instance metadata, consider setting subscription_id: %v", tenantID, err)
+					continue
+				}
+				subscriptionID = instanceMetadata.Compute.SubscriptionID
 			}
 			cred, err := p.hooks.fetchCredential(tenantID)
 			if err != nil {
 				status.ReportErrorf("unable to fetch client credential: %v", err)
 			}
-			client, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
+			client, err = p.hooks.newClient(subscriptionID, cred)
 			if err != nil {
 				status.ReportErrorf("unable to create client with default credential: %v", err)
 			}

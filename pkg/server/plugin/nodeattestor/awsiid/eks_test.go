@@ -64,7 +64,7 @@ func TestReloadNodeList(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, testEKSValidator.eksNodeList, 2) // Two instances in the test setup
 		require.Greater(t, testEKSValidator.eksNodeListValidDuration, time.Now())
-		require.Equal(t, testEKSValidator.retries, eksRetries)
+		require.Equal(t, eksRetries, testEKSValidator.retries)
 	})
 
 	t.Run("reload node list with catch burst", func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestReloadNodeList(t *testing.T) {
 
 		_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
 		require.NoError(t, err)
-		require.Equal(t, testEKSValidator.retries, eksRetries)
+		require.Equal(t, eksRetries, testEKSValidator.retries)
 	})
 
 	t.Run("error, list nodegroups call fails", func(t *testing.T) {

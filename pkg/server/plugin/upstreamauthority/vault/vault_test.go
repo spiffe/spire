@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -862,4 +863,87 @@ func certURI(cert *x509.Certificate) string {
 		return cert.URIs[0].String()
 	}
 	return ""
+}
+
+func TestValidate(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		configTmpl string
+		expectResp *configv1.ValidateResponse
+	}{
+		{
+			name:       "Token authentication",
+			configTmpl: testTokenAuthConfigTpl,
+			expectResp: &configv1.ValidateResponse{Valid: true},
+		},
+		{
+			name:       "Token authentication with the token given as an environment variable",
+			configTmpl: testTokenAuthConfigWithEnvTpl,
+			expectResp: &configv1.ValidateResponse{Valid: true},
+		},
+		{
+			name:       "Client Certificate authentication",
+			configTmpl: testCertAuthConfigTpl,
+			expectResp: &configv1.ValidateResponse{Valid: true},
+		},
+		{
+			name:       "AppRole authentication",
+			configTmpl: testAppRoleAuthConfigTpl,
+			expectResp: &configv1.ValidateResponse{Valid: true},
+		},
+		{
+			name:       "Kubernetes authentication",
+			configTmpl: testK8sAuthConfigTpl,
+			expectResp: &configv1.ValidateResponse{Valid: true},
+		},
+		{
+			name:       "Malformed configuration",
+			configTmpl: "invalid-config",
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{"plugin configuration is malformed"},
+			},
+		},
+		{
+			name:       "No authentication method configured",
+			configTmpl: `pki_mount_point = "test-pki"`,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{"must be configured one of these authentication method 'Token, Client Certificate, AppRole or Kubernetes"},
+			},
+		},
+		{
+			name:       "Multiple authentication methods configured",
+			configTmpl: testMultipleAuthConfigsTpl,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{"only one authentication method can be configured"},
+			},
+		},
+		{
+			name:       "Kubernetes authentication without k8s_auth_role_name",
+			configTmpl: testK8sAuthNoRoleNameTpl,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{"k8s_auth_role_name is required"},
+			},
+		},
+		{
+			name:       "Kubernetes authentication without token_path",
+			configTmpl: testK8sAuthNoTokenPathTpl,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{"token_path is required"},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := New().Validate(context.Background(), &configv1.ValidateRequest{
+				CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+				Configuration:     getTestConfigureRequest(t, "https://localhost:8200/", tt.configTmpl),
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.expectResp, resp)
+		})
+	}
 }

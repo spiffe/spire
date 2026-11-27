@@ -1,12 +1,14 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
@@ -14,6 +16,13 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+)
+
+const (
+	maxBundleSize = 4 << 20
+
+	// Bounds a fetch from an endpoint that accepts the connection and never responds.
+	fetchTimeout = 5 * time.Minute
 )
 
 type SPIFFEAuthConfig struct {
@@ -81,12 +90,16 @@ func NewClient(config ClientConfig) (Client, error) {
 	}
 	return &client{
 		c:      config,
-		client: &http.Client{Transport: transport},
+		client: &http.Client{Transport: transport, Timeout: fetchTimeout},
 	}, nil
 }
 
-func (c *client) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
-	resp, err := c.client.Get(c.c.EndpointURL)
+func (c *client) FetchBundle(ctx context.Context) (*spiffebundle.Bundle, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.c.EndpointURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := c.client.Do(req)
 	if err != nil {
 		var hostnameError x509.HostnameError
 		if errors.As(err, &hostnameError) && c.c.SPIFFEAuth == nil && len(hostnameError.Certificate.URIs) > 0 {
@@ -102,7 +115,15 @@ func (c *client) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
 		return nil, fmt.Errorf("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	b, err := bundleutil.Decode(c.c.TrustDomain, resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBundleSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read bundle: %w", err)
+	}
+	if len(data) > maxBundleSize {
+		return nil, fmt.Errorf("bundle response exceeds %d bytes", maxBundleSize)
+	}
+
+	b, err := bundleutil.Decode(c.c.TrustDomain, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}

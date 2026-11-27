@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
@@ -100,7 +101,18 @@ func (r *rotator) runRotation(ctx context.Context) error {
 
 		switch {
 		case err != nil && rotationutil.X509Expired(r.clk.Now(), state.SVID[0]):
-			r.c.Log.WithError(err).Errorf("Could not %s", rotationError(state))
+			log := r.c.Log
+			// When the server asks the agent to re-attest or shuts it down,
+			// the manager handles the error and raises the alert, so only
+			// mark this record when nothing else will.
+			if !nodeutil.ShouldAgentReattest(err) && !nodeutil.ShouldAgentShutdown(err) {
+				log = log.WithFields(logrus.Fields{
+					telemetry.Alert:          true,
+					telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+					telemetry.AlertCondition: telemetry.SVIDExpiredAlertCondition,
+				})
+			}
+			log.WithError(err).Errorf("Could not %s", rotationError(state))
 			// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
 			return fmt.Errorf("current SVID has already expired and %s failed: %w", rotationError(state), err)
 		case err != nil && nodeutil.ShouldAgentReattest(err):

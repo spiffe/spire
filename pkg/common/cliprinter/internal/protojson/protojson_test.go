@@ -64,7 +64,7 @@ func TestPrint(t *testing.T) {
 			stderr := &bytes.Buffer{}
 			err := Print(c.protoFunc(t), stdout, stderr)
 
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, c.stdout, stdout.String())
 			assert.Equal(t, c.stderr, stderr.String())
 		})

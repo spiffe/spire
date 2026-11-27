@@ -2335,7 +2335,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			require.NotNil(t, resp)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogMsgs)
 
-			require.Equal(t, len(tt.expectedResults), len(resp.Results))
+			require.Len(t, resp.Results, len(tt.expectedResults))
 			for i, result := range resp.Results {
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Status, result.Status)
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Bundle, result.Bundle)
@@ -2757,7 +2757,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			require.NotNil(t, resp)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogMsgs)
 
-			require.Equal(t, len(tt.expectedResults), len(resp.Results))
+			require.Len(t, resp.Results, len(tt.expectedResults))
 			for i, result := range resp.Results {
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Status, result.Status)
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Bundle, result.Bundle)
@@ -3141,7 +3141,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			require.NotNil(t, resp)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogMsgs)
 
-			require.Equal(t, len(tt.expectedResults), len(resp.Results))
+			require.Len(t, resp.Results, len(tt.expectedResults))
 			for i, result := range resp.Results {
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Status, result.Status)
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Bundle, result.Bundle)

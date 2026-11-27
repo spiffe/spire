@@ -152,3 +152,21 @@ func TestHealthCheckHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestHealthCheckHandlerMethodNotAllowedSetsAllowHeader(t *testing.T) {
+	source := new(FakeKeySetSource)
+	c := Config{
+		ServerAPI:    &ServerAPIConfig{},
+		HealthChecks: &HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"}}
+	h := NewHealthChecksHandler(source, &c)
+
+	for _, path := range []string{"/ready", "/live"} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, "http://localhost"+path, nil)
+			h.ServeHTTP(w, r)
+			require.Equal(t, http.StatusMethodNotAllowed, w.Code)
+			require.Equal(t, http.MethodGet, w.Header().Get("Allow"))
+		})
+	}
+}

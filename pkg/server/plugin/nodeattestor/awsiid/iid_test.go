@@ -963,28 +963,28 @@ func TestConfigure(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	orgVerificationFeatureErr := fmt.Errorf("make %v, %v & %v are present inside block : %v for feature node attestation using account id verification", "verify_organization", orgAccountID, orgAccountRole, orgAccRegion)
-	orgVerificationFeatureTTLErr := fmt.Errorf("make %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
-	orgVerificationFeatureMinTTLErr := fmt.Errorf("make %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+	orgVerificationFeatureMessage := fmt.Sprintf("please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
+	orgVerificationFeatureTTLMessage := fmt.Sprintf("please ensure that %q if configured, it should be in duration and is suffixed with required 'm' for time duration in minute ex. '5m'. Otherwise, remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+	orgVerificationFeatureMinTTLMessage := fmt.Sprintf("please ensure that %q if configured, it should be greater than or equal to %q. Otherwise remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 
 	t.Run("fail, account belongs to org, if params are not specified and feature enabled", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = {}`)
-		require.Error(t, err, orgVerificationFeatureErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureMessage)
 	})
 
 	t.Run("fail, account belongs to org, if only account id is specified, roles & region are not specified", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" }`)
-		require.Error(t, err, orgVerificationFeatureErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureMessage)
 	})
 
 	t.Run("fail, account belongs to org, if ttl is not specified in proper format", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "2" }`)
-		require.Error(t, err, orgVerificationFeatureTTLErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureTTLMessage)
 	})
 
 	t.Run("fail, account belongs to org, if ttl is specified and is less than min ttl required", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "30s" }`)
-		require.Error(t, err, orgVerificationFeatureMinTTLErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureMinTTLMessage)
 	})
 
 	t.Run("success, verify_organization featured enabled with required params", func(t *testing.T) {

@@ -795,7 +795,7 @@ func TestGenerateKey(t *testing.T) {
 			}
 
 			select {
-			case <-deleteSignal:
+			case <-deleteSignal: //nolint:errcheck // Deletion errors are checked through the expected logs below.
 				// The logs emitted by the deletion goroutine and those that
 				// enqueue deletion can be intermixed, so we cannot depend
 				// on the exact order of the logs, so we just assert that
@@ -1203,7 +1203,7 @@ func TestGetPublicKeys(t *testing.T) {
 
 			require.NotNil(t, resp)
 			require.NoError(t, err)
-			require.Equal(t, len(tt.fakeEntries), len(resp.PublicKeys))
+			require.Len(t, resp.PublicKeys, len(tt.fakeEntries))
 		})
 	}
 }
@@ -1377,7 +1377,7 @@ func TestRefreshAliases(t *testing.T) {
 
 			// assert
 			if tt.updateAliasErr != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Equal(t, tt.err, err.Error())
 				return
 			}
@@ -1394,12 +1394,12 @@ func TestRefreshAliases(t *testing.T) {
 				// check aliases
 				alias, ok := storedAliases[*expected.AliasName]
 				require.True(t, ok, "Expected alias was not present on end result: %q", *expected.AliasName)
-				require.EqualValues(t, expected.AliasLastUpdatedDate.String(), alias.KeyEntry.AliasLastUpdatedDate.String(), *expected.AliasName)
+				require.Equal(t, expected.AliasLastUpdatedDate.String(), alias.KeyEntry.AliasLastUpdatedDate.String(), *expected.AliasName)
 
 				// check keys
 				key, ok := storedKeys[*expected.KeyID]
 				require.True(t, ok, "Expected alias was not present on end result: %q", *expected.KeyID)
-				require.EqualValues(t, expected.AliasLastUpdatedDate.String(), key.AliasLastUpdatedDate.String(), *expected.KeyID)
+				require.Equal(t, expected.AliasLastUpdatedDate.String(), key.AliasLastUpdatedDate.String(), *expected.KeyID)
 			}
 		})
 	}
@@ -1495,7 +1495,7 @@ func TestRefreshAliasesDescribeKeyError(t *testing.T) {
 	ts.clockHook.Add(6 * time.Hour)
 	err = waitForSignal(t, refreshAliasesSignal)
 
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.Equal(t, "describe key failure", err.Error())
 }
 
@@ -1531,7 +1531,7 @@ func TestRefreshAliasesMalformedDescribeKeyResponse(t *testing.T) {
 	ts.clockHook.Add(6 * time.Hour)
 	err = waitForSignal(t, refreshAliasesSignal)
 
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.Equal(t, `malformed describe key response for alias "alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"`, err.Error())
 }
 
@@ -1747,7 +1747,7 @@ func TestDisposeAliases(t *testing.T) {
 			err = waitForSignal(t, disposeAliasesSignal)
 			// assert errors
 			if tt.err != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Equal(t, tt.err, err.Error())
 				return
 			}
@@ -2082,7 +2082,7 @@ func TestDisposeKeys(t *testing.T) {
 			err = waitForSignal(t, disposeKeysSignal)
 			// assert errors
 			if tt.err != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Equal(t, tt.err, err.Error())
 				return
 			}
@@ -2471,13 +2471,13 @@ func TestBuildKeyTags(t *testing.T) {
 
 func TestBuildKeyTagsEmpty(t *testing.T) {
 	tags := buildKeyTags(map[string]string{})
-	require.Len(t, tags, 0)
+	require.Empty(t, tags)
 }
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration:  config,
+		Configuration:     config,
 	}
 }
 
@@ -2491,7 +2491,7 @@ const (
 func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyPolicyFile string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration: fmt.Sprintf(`{
+		Configuration: fmt.Sprintf(`{
 			"access_key_id": "%s",
 			"secret_access_key": "%s",
 			"region":"%s",
@@ -2510,7 +2510,7 @@ func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyIdentifie
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration:  serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyIdentifierFile, getKeyIdentifierFile(t)),
+		Configuration:     serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyIdentifierFile, getKeyIdentifierFile(t)),
 	}
 }
 
@@ -2578,7 +2578,7 @@ func waitForSignal(t *testing.T, ch chan error) error {
 func configureTagBasedRequest(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration: fmt.Sprintf(`{
+		Configuration: fmt.Sprintf(`{
 			"access_key_id": %q,
 			"secret_access_key": %q,
 			"region": %q,

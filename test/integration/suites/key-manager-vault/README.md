@@ -7,3 +7,4 @@ installs HashiCorp Vault. It then asserts the following:
 
 * SPIRE server successfully requests a key from the referenced Vault Transit Secret Engine
 * Verifies that Auth Methods are configured successfully
+* Verifies that the trust bundle is published to a ClusterTrustBundle

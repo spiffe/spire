@@ -67,7 +67,7 @@ func TestEntryIteratorDS(t *testing.T) {
 		}
 
 		assert.False(t, it.Next(ctx))
-		assert.NoError(t, it.Err())
+		require.NoError(t, it.Err())
 		assert.ElementsMatch(t, expectedEntries, entries)
 	})
 
@@ -80,7 +80,7 @@ func TestEntryIteratorDS(t *testing.T) {
 		dsErr := errors.New("some datastore error")
 		ds.SetNextError(dsErr)
 		assert.False(t, it.Next(ctx))
-		assert.Error(t, it.Err())
+		require.Error(t, it.Err())
 		// it.Next() returns false after encountering an error on previous call to Next()
 		assert.False(t, it.Next(ctx))
 	})
@@ -131,7 +131,7 @@ func TestAgentIteratorDS(t *testing.T) {
 		agents := make([]Agent, numAgents)
 		for i := range numAgents {
 			assert.True(t, it.Next(ctx))
-			assert.NoError(t, it.Err())
+			require.NoError(t, it.Err())
 			agents[i] = it.Agent()
 		}
 
@@ -144,7 +144,7 @@ func TestAgentIteratorDS(t *testing.T) {
 		it := makeAgentIteratorDS(ds)
 		ds.SetNextError(errors.New("some datastore error"))
 		assert.False(t, it.Next(ctx))
-		assert.Error(t, it.Err())
+		require.Error(t, it.Err())
 		// it.Next() returns false after encountering an error on previous call to Next()
 		assert.False(t, it.Next(ctx))
 	})

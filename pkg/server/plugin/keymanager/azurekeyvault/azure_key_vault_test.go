@@ -355,7 +355,7 @@ func TestGenerateKey(t *testing.T) {
 			}
 
 			select {
-			case <-deleteSignal:
+			case <-deleteSignal: //nolint:errcheck // Deletion errors are checked through the expected logs below.
 				// The logs emitted by the deletion goroutine and those that
 				// enqueue deletion can be intermixed, so we cannot depend
 				// on the exact order of the logs, so we just assert that
@@ -754,7 +754,7 @@ func TestGetPublicKeys(t *testing.T) {
 
 			require.NotNil(t, resp)
 			require.NoError(t, err)
-			require.Equal(t, len(tt.generatedKeyIds), len(resp.PublicKeys))
+			require.Len(t, resp.PublicKeys, len(tt.generatedKeyIds))
 		})
 	}
 }
@@ -814,7 +814,7 @@ func TestRefreshKeys(t *testing.T) {
 
 			// assert
 			if tt.updateKeyErr != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Equal(t, tt.err, err.Error())
 				return
 			}
@@ -827,10 +827,10 @@ func TestRefreshKeys(t *testing.T) {
 				tags := keyEntry.KeyBundle.Tags
 				// Assert that keys belonging to the server are refreshed
 				if *tags[tagNameServerTrustDomain] == trustDomain && *tags[tagNameServerID] == validServerID {
-					require.EqualValues(t, keyEntry.KeyBundle.Attributes.Updated, &refreshedDate, keyEntry.KeyBundle.Key.KID.Name())
+					require.Equal(t, keyEntry.KeyBundle.Attributes.Updated, &refreshedDate, keyEntry.KeyBundle.Key.KID.Name())
 				} else {
 					// Assert that keys not belonging to the server are not refreshed
-					require.EqualValues(t, keyEntry.KeyBundle.Attributes.Updated, &unixEpoch, keyEntry.KeyBundle.Key.KID.Name())
+					require.Equal(t, keyEntry.KeyBundle.Attributes.Updated, &unixEpoch, keyEntry.KeyBundle.Key.KID.Name())
 				}
 			}
 		})
@@ -1163,7 +1163,7 @@ func setupTest(t *testing.T) *pluginTest {
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(KeyIdentifierFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret),
+		Configuration:     serializedConfiguration(KeyIdentifierFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 	}
 }
@@ -1202,14 +1202,14 @@ func serializedConfiguration(keyIdentifierConfigName KeyIdentifierConfigName, ke
 func configureRequestWithVars(keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
-		HclConfiguration:  serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
+		Configuration:     serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
 	}
 }
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
-		HclConfiguration:  config,
+		Configuration:     config,
 	}
 }
 

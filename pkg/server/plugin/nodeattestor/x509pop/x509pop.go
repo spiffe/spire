@@ -16,7 +16,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
@@ -26,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"google.golang.org/grpc/codes"
@@ -53,17 +53,18 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Config struct {
-	Mode              string   `hcl:"mode"`
-	SVIDPrefix        *string  `hcl:"spiffe_prefix"`
-	CABundlePath      string   `hcl:"ca_bundle_path"`
-	CABundlePaths     []string `hcl:"ca_bundle_paths"`
-	AgentPathTemplate string   `hcl:"agent_path_template"`
-	MaxIntermediates  *int     `hcl:"max_intermediates"`
-	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
-	VerifyClientIP    bool     `hcl:"verify_client_ip"`
-	GroupTemplate     string   `hcl:"group_template"`
-	AllowedGroups     []string `hcl:"allowed_groups"`
-	ExtensionOIDs     []string `hcl:"extension_oids"`
+	Mode              string   `hcl:"mode" yaml:"mode"`
+	SVIDPrefix        *string  `hcl:"spiffe_prefix" yaml:"spiffe_prefix"`
+	CABundlePath      string   `hcl:"ca_bundle_path" yaml:"ca_bundle_path"`
+	CABundlePaths     []string `hcl:"ca_bundle_paths" yaml:"ca_bundle_paths"`
+	AgentPathTemplate string   `hcl:"agent_path_template" yaml:"agent_path_template"`
+	MaxIntermediates  *int     `hcl:"max_intermediates" yaml:"max_intermediates"`
+	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size" yaml:"max_rsa_key_size"`
+	VerifyClientIP    bool     `hcl:"verify_client_ip" yaml:"verify_client_ip"`
+	GroupTemplate     string   `hcl:"group_template" yaml:"group_template"`
+	AllowedGroups     []string `hcl:"allowed_groups" yaml:"allowed_groups"`
+	ExtensionOIDs     []string `hcl:"extension_oids" yaml:"extension_oids"`
+	HashAlgorithm     string   `hcl:"hash_algorithm" yaml:"hash_algorithm"`
 }
 
 // MySQL stores selector values in varchar(255) columns.
@@ -81,11 +82,12 @@ type configuration struct {
 	groupTemplate    *agentpathtemplate.Template
 	allowedGroups    map[string]struct{}
 	extensionOIDs    map[string]struct{}
+	hashAlgorithm    string
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *configuration {
 	hclConfig := new(Config)
-	if err := hcl.Decode(hclConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, hclConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
@@ -188,6 +190,14 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		extensionOIDs[oid] = struct{}{}
 	}
 
+	hashAlgorithm := x509pop.HashSHA256
+	if hclConfig.HashAlgorithm != "" {
+		hashAlgorithm = hclConfig.HashAlgorithm
+		if _, err := x509pop.ParseHashAlgorithm(hashAlgorithm); err != nil {
+			status.ReportErrorf("invalid hash_algorithm %q: must be one of %q or %q", hclConfig.HashAlgorithm, x509pop.HashSHA256, x509pop.HashSHA384)
+		}
+	}
+
 	newConfig := &configuration{
 		trustDomain:      coreConfig.TrustDomain,
 		trustBundle:      util.NewCertPool(trustBundles...),
@@ -200,6 +210,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		groupTemplate:    groupTemplate,
 		allowedGroups:    allowedGroups,
 		extensionOIDs:    extensionOIDs,
+		hashAlgorithm:    hashAlgorithm,
 	}
 
 	return newConfig
@@ -334,7 +345,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	// now that the leaf certificate is trusted, issue a challenge to the node
 	// to prove possession of the private key.
-	challenge, err := x509pop.GenerateChallenge(leaf)
+	challenge, err := x509pop.GenerateChallenge(leaf, config.hashAlgorithm)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}

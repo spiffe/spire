@@ -282,6 +282,7 @@ func TestValidate(t *testing.T) {
                 key_identifier_file = "{{ .KeyIdentifierFile }}"
                 vault_addr  = "{{ .Addr }}"
                 ca_cert_path = "testdata/root-cert.pem"
+                token_auth {}
 		`,
 			expectResp: &configv1.ValidateResponse{
 				Valid: false,
@@ -295,11 +296,56 @@ func TestValidate(t *testing.T) {
 			configTmpl: `
 		vault_addr  = "{{ .Addr }}"
 		ca_cert_path = "testdata/root-cert.pem"
+		token_auth {}
 		`,
 			expectResp: &configv1.ValidateResponse{
 				Valid: false,
 				Notes: []string{
 					"one of 'key_identifier_file' or 'key_identifier_value' must be provided",
+				},
+			},
+		},
+		{
+			name: "No authentication method configured",
+			configTmpl: `
+		key_identifier_file = "{{ .KeyIdentifierFile }}"
+		vault_addr  = "{{ .Addr }}"
+		ca_cert_path = "testdata/root-cert.pem"
+		`,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{
+					"must be configured one of these authentication method 'Token, Client Certificate, AppRole or Kubernetes",
+				},
+			},
+		},
+		{
+			name:       "Multiple authentication methods configured",
+			configTmpl: testMultipleAuthConfigsTpl,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{
+					"only one authentication method can be configured",
+				},
+			},
+		},
+		{
+			name:       "Kubernetes authentication without k8s_auth_role_name",
+			configTmpl: testK8sAuthNoRoleNameTpl,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{
+					"k8s_auth_role_name is required",
+				},
+			},
+		},
+		{
+			name:       "Kubernetes authentication without token_path",
+			configTmpl: testK8sAuthNoTokenPathTpl,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{
+					"token_path is required",
 				},
 			},
 		},
@@ -311,7 +357,7 @@ func TestValidate(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost").Name(),
 				},
-				HclConfiguration: plainConfig,
+				Configuration: plainConfig,
 			}
 
 			p := new(Plugin)

@@ -268,7 +268,7 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 			return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
 		}
 
-		configString, err := GetPluginConfigString(pluginConfig)
+		configString, configFormat, err := GetPluginConfigString(pluginConfig)
 		if err != nil {
 			pluginNotes[pluginNotesID] = append(pluginNotes[pluginNotesID], fmt.Sprintf("failed to read plugin configuration: %s", err))
 			continue
@@ -276,7 +276,7 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 
 		// The configurer can be nil in the case where the Configuration service is not requested by the plugin.
 		if configurer != nil {
-			resp, err := configurer.Validate(ctx, config.CoreConfig, configString)
+			resp, err := configurer.Validate(ctx, config.CoreConfig, configString, configFormat)
 			if err != nil && status.Code(err) != codes.Unimplemented {
 				pluginNotes[pluginNotesID] = append(pluginNotes[pluginNotesID], err.Error())
 			}
@@ -300,11 +300,10 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 	return pluginNotes, nil
 }
 
-func GetPluginConfigString(c PluginConfig) (string, error) {
+func GetPluginConfigString(c PluginConfig) (string, ConfigFormat, error) {
 	if c.DataSource == nil {
-		return FixedData("").Load()
+		return FixedData{}.Load()
 	}
-
 	return c.DataSource.Load()
 }
 

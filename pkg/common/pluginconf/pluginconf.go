@@ -54,9 +54,25 @@ func (s *Status) ReportErrorf(format string, args ...any) {
 type Request interface {
 	GetCoreConfiguration() *configv1.CoreConfiguration
 	GetHclConfiguration() string
+	GetConfiguration() string
+	GetConfigFormat() configv1.ConfigFormat
 }
 
-func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText string, s *Status) *C) (*C, []string, error) {
+// Config returns the configuration text and format of a request. The text is
+// taken from the Configuration field, falling back to HclConfiguration for
+// requests from SPIRE versions that only set the latter.
+func Config(req Request) (string, catalog.ConfigFormat, error) {
+	format, err := catalog.ConfigFormatFromProto(req.GetConfigFormat())
+	if err != nil {
+		return "", 0, err
+	}
+	if text := req.GetConfiguration(); text != "" || format != catalog.ConfigFormatHCL {
+		return text, format, nil
+	}
+	return req.GetHclConfiguration(), format, nil
+}
+
+func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, s *Status) *C) (*C, []string, error) {
 	var s Status
 	var coreConfig catalog.CoreConfig
 
@@ -75,6 +91,11 @@ func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText
 		}
 	}
 
-	config := build(coreConfig, req.GetHclConfiguration(), &s)
+	text, format, err := Config(req)
+	if err != nil {
+		s.ReportError(err.Error())
+		return nil, s.notes, s.err
+	}
+	config := build(coreConfig, text, format, &s)
 	return config, s.notes, s.err
 }

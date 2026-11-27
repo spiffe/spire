@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -21,10 +22,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 )
 
 func TestCheckHealth(t *testing.T) {
@@ -152,7 +155,8 @@ func TestMetricsServedDuringAttestationRetry(t *testing.T) {
 
 	cancel()
 	select {
-	case <-runErr:
+	case err := <-runErr:
+		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(30 * time.Second):
 		t.Fatal("timeout waiting for Run to return after context cancellation")
 	}
@@ -260,4 +264,42 @@ type unavailableWorkloadAPI struct {
 
 func (unavailableWorkloadAPI) FetchX509Bundles(_ *workload_pb.X509BundlesRequest, _ workload_pb.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
 	return status.Error(codes.Unavailable, "")
+}
+
+func TestHandleUnknownAuthorityRebootstrapAlert(t *testing.T) {
+	log, hook := test.NewNullLogger()
+
+	sto, err := storage.Open(t.TempDir())
+	require.NoError(t, err)
+	ca := testca.New(t, spiffeid.RequireTrustDomainFromString("example.org"))
+	require.NoError(t, sto.StoreBundle(ca.X509Authorities()))
+
+	// A stored bundle puts the trust bundle sources in rebootstrap mode.
+	tbs := trustbundlesources.New(&trustbundlesources.Config{TrustDomain: "example.org"}, log)
+	tbs.SetMetrics(telemetry.Blackhole{})
+	require.NoError(t, tbs.SetStorage(sto))
+	require.True(t, tbs.IsRebootstrap())
+
+	a := New(&Config{
+		Log:                log,
+		RebootstrapMode:    RebootstrapAuto,
+		TrustBundleSources: tbs,
+	})
+
+	require.NoError(t, a.handleUnknownAuthority(sto))
+
+	spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+		{
+			Level:   logrus.WarnLevel,
+			Message: "Trust Bundle and Server don't agree, rebootstrapping",
+			Data: logrus.Fields{
+				telemetry.Alert:          "true",
+				telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+				telemetry.AlertCondition: telemetry.RebootstrapAlertCondition,
+			},
+		},
+	})
+
+	_, err = sto.LoadBundle()
+	require.ErrorIs(t, err, storage.ErrNotCached)
 }

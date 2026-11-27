@@ -12,7 +12,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	hcltoken "github.com/hashicorp/hcl/hcl/token"
 	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -22,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/valyala/fastjson"
 	"google.golang.org/grpc/codes"
@@ -98,72 +98,72 @@ type HCLConfig struct {
 	// KubeletReadOnlyPort defines the read only port for the kubelet
 	// (typically 10255). This option is mutually exclusive with
 	// KubeletSecurePort.
-	KubeletReadOnlyPort int `hcl:"kubelet_read_only_port"`
+	KubeletReadOnlyPort int `hcl:"kubelet_read_only_port" yaml:"kubelet_read_only_port"`
 
 	// KubeletSecurePort defines the secure port for the kubelet (typically
 	// 10250). This option is mutually exclusive with KubeletReadOnlyPort.
-	KubeletSecurePort int `hcl:"kubelet_secure_port"`
+	KubeletSecurePort int `hcl:"kubelet_secure_port" yaml:"kubelet_secure_port"`
 
 	// DisableKubeletClient disables kubelet client setup and kubelet pod-list
 	// calls. PID-based workload attestation and agent_node pod reference
 	// resolution require the kubelet client.
-	DisableKubeletClient bool `hcl:"disable_kubelet_client"`
+	DisableKubeletClient bool `hcl:"disable_kubelet_client" yaml:"disable_kubelet_client"`
 
 	// MaxPollAttempts is the maximum number of polling attempts for the
 	// container hosting the workload process.
-	MaxPollAttempts int `hcl:"max_poll_attempts"`
+	MaxPollAttempts int `hcl:"max_poll_attempts" yaml:"max_poll_attempts"`
 
 	// PollRetryInterval is the time in between polling attempts.
-	PollRetryInterval string `hcl:"poll_retry_interval"`
+	PollRetryInterval string `hcl:"poll_retry_interval" yaml:"poll_retry_interval"`
 
 	// KubeletCAPath is the path to the CA certificate for authenticating the
 	// kubelet over the secure port. Required when using the secure port unless
 	// SkipKubeletVerification is set. Defaults to the cluster trust bundle.
-	KubeletCAPath string `hcl:"kubelet_ca_path"`
+	KubeletCAPath string `hcl:"kubelet_ca_path" yaml:"kubelet_ca_path"`
 
 	// SkipKubeletVerification controls whether the plugin will
 	// verify the certificate presented by the kubelet.
-	SkipKubeletVerification bool `hcl:"skip_kubelet_verification"`
+	SkipKubeletVerification bool `hcl:"skip_kubelet_verification" yaml:"skip_kubelet_verification"`
 
 	// TokenPath is the path to the bearer token used to authenticate to the
 	// secure port. Defaults to the default service account token path unless
 	// PrivateKeyPath and CertificatePath are specified.
-	TokenPath string `hcl:"token_path"`
+	TokenPath string `hcl:"token_path" yaml:"token_path"`
 
 	// CertificatePath is the path to a certificate key used for client
 	// authentication with the kubelet. Must be used with PrivateKeyPath.
-	CertificatePath string `hcl:"certificate_path"`
+	CertificatePath string `hcl:"certificate_path" yaml:"certificate_path"`
 
 	// PrivateKeyPath is the path to a private key used for client
 	// authentication with the kubelet. Must be used with CertificatePath.
-	PrivateKeyPath string `hcl:"private_key_path"`
+	PrivateKeyPath string `hcl:"private_key_path" yaml:"private_key_path"`
 
 	// UseAnonymousAuthentication controls whether communication to the
 	// kubelet over the secure port is unauthenticated. This option is mutually
 	// exclusive with other authentication configuration fields TokenPath,
 	// CertificatePath, and PrivateKeyPath.
-	UseAnonymousAuthentication bool `hcl:"use_anonymous_authentication"`
+	UseAnonymousAuthentication bool `hcl:"use_anonymous_authentication" yaml:"use_anonymous_authentication"`
 
 	// NodeNameEnv is the environment variable used to determine the node name
 	// for contacting the kubelet. It defaults to "MY_NODE_NAME". If the
 	// environment variable is not set, and NodeName is not specified, the
 	// plugin will default to localhost (which requires host networking).
-	NodeNameEnv string `hcl:"node_name_env"`
+	NodeNameEnv string `hcl:"node_name_env" yaml:"node_name_env"`
 
 	// NodeName is the node name used when contacting the kubelet. If set, it
 	// takes precedence over NodeNameEnv.
-	NodeName string `hcl:"node_name"`
+	NodeName string `hcl:"node_name" yaml:"node_name"`
 
 	// ReloadInterval controls how often TLS and token configuration is loaded
 	// from the disk.
-	ReloadInterval string `hcl:"reload_interval"`
+	ReloadInterval string `hcl:"reload_interval" yaml:"reload_interval"`
 
 	// DisableContainerSelectors disables the gathering of selectors for the
 	// specific container running the workload. This allows attestation to
 	// succeed with just pod related selectors when the workload pod is known
 	// but the container may not be in a ready state at the time of attestation
 	// (e.g. when a postStart hook has yet to complete).
-	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
+	DisableContainerSelectors bool `hcl:"disable_container_selectors" yaml:"disable_container_selectors"`
 
 	// ExcludeCompletedPods, when true, drops pods that have reached a terminal
 	// status.phase ("Failed" or "Succeeded") and have no running containers
@@ -173,69 +173,69 @@ type HCLConfig struct {
 	// accumulate in large numbers and balloon the plugin's memory footprint.
 	// Disabled by default, since a dropped pod can no longer be resolved as a
 	// pod reference under the agent_node scope.
-	ExcludeCompletedPods bool `hcl:"exclude_completed_pods"`
+	ExcludeCompletedPods bool `hcl:"exclude_completed_pods" yaml:"exclude_completed_pods"`
 
 	// UseNewContainerLocator, if true, uses the new container locator
 	// mechanism instead of the legacy cgroup matchers. Defaults to true if
 	// unset. This configurable will be removed in a future release.
-	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
+	UseNewContainerLocator *bool `hcl:"use_new_container_locator" yaml:"use_new_container_locator"`
 
 	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
 	// about the cgroup information used to locate the container.
-	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
+	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs" yaml:"verbose_container_locator_logs"`
 
 	// EnableNamespaceLabels enables fetching namespace labels from the
 	// Kubernetes API server. When enabled, namespace labels are available
 	// as selectors. This requires the SPIRE agent service account to have
 	// RBAC permissions to get namespaces.
-	EnableNamespaceLabels bool `hcl:"enable_namespace_labels"`
+	EnableNamespaceLabels bool `hcl:"enable_namespace_labels" yaml:"enable_namespace_labels"`
 
 	// Sigstore contains sigstore specific configs.
-	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
+	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty" yaml:"sigstore"`
 
 	// Experimental contains experimental configs.
-	Experimental *k8sExperimentalHCLConfig `hcl:"experimental"`
+	Experimental *k8sExperimentalHCLConfig `hcl:"experimental" yaml:"experimental"`
 
-	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type k8sExperimentalHCLConfig struct {
 	// APIServer contains Kubernetes API server-specific configs.
-	APIServer *k8sAPIServerHCLConfig `hcl:"api_server"`
+	APIServer *k8sAPIServerHCLConfig `hcl:"api_server" yaml:"api_server"`
 
 	// Broker contains SPIFFE Broker API-specific configuration.
-	Broker *k8sBrokerHCLConfig `hcl:"broker"`
+	Broker *k8sBrokerHCLConfig `hcl:"broker" yaml:"broker"`
 
-	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type k8sBrokerHCLConfig struct {
 	// AccessPolicy controls whether the plugin creates SubjectAccessReview
 	// requests to authorize broker access to resolved Kubernetes objects.
-	AccessPolicy string `hcl:"access_policy"`
+	AccessPolicy string `hcl:"access_policy" yaml:"access_policy"`
 
-	Brokers []k8sBrokerHCLEntry `hcl:"brokers"`
+	Brokers []k8sBrokerHCLEntry `hcl:"brokers" yaml:"brokers"`
 
-	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type k8sBrokerHCLEntry struct {
-	ID                string `hcl:"id"`
-	PodReferenceScope string `hcl:"pod_reference_scope"`
+	ID                string `hcl:"id" yaml:"id"`
+	PodReferenceScope string `hcl:"pod_reference_scope" yaml:"pod_reference_scope"`
 
-	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type k8sAPIServerHCLConfig struct {
-	Cache *k8sAPIServerCacheHCLConfig `hcl:"cache"`
+	Cache *k8sAPIServerCacheHCLConfig `hcl:"cache" yaml:"cache"`
 
-	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type k8sAPIServerCacheHCLConfig struct {
-	Enabled bool `hcl:"enabled"`
+	Enabled bool `hcl:"enabled" yaml:"enabled"`
 
-	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -252,10 +252,10 @@ type k8sConfig struct {
 	podListFetcherConfig      podListFetcherConfig
 }
 
-func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *k8sConfig {
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *k8sConfig {
 	// Parse HCL config payload into config struct
 	newConfig := new(HCLConfig)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
@@ -1110,16 +1110,44 @@ func decodePodFromKubelet(podValue *fastjson.Value) (*corev1.Pod, error) {
 // PartialObjectMetadata, and emits a uniform set of selectors derived from
 // `ObjectMeta` (resource, namespace, name, uid, labels, owner references).
 func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
+	kubeClient, err := p.getOrCreateKubeMetadataClient(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
+	}
+
+	mapper := kubeClient.RESTMapper()
+	generation, refreshable := restMapperGeneration(mapper)
+
+	result, err := p.attestObjectReference(ctx, kubeClient, objRef)
+	if err == nil || status.Code(err) != codes.NotFound || !refreshable {
+		return result, err
+	}
+
+	// A NotFound can mean the cached discovery information still points at an
+	// API version that no longer serves the resource. Refresh the mapper and
+	// retry only if it was actually replaced, so a CRD that started serving a
+	// new version is picked up without restarting the agent.
+	//
+	// This covers the uncached path. With experimental.api_server.cache.enabled,
+	// an object already in the informer store can keep resolving at the old
+	// version, so NotFound may never fire; removing the stale informer is a
+	// follow-up.
+	if refreshErr := refreshRESTMapperAfterMiss(mapper); refreshErr != nil {
+		return nil, status.Errorf(codes.Internal, "unable to refresh Kubernetes REST mapper: %v", refreshErr)
+	}
+	if newGeneration, _ := restMapperGeneration(mapper); newGeneration == generation {
+		return nil, err
+	}
+	return p.attestObjectReference(ctx, kubeClient, objRef)
+}
+
+func (p *Plugin) attestObjectReference(ctx context.Context, kubeClient client.Client, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
 	r := objRef.GetType()
 	key := objRef.GetKey()
 	namespace := key.GetNamespace()
 	name := key.GetName()
 	uid := types.UID(objRef.GetUid())
 
-	kubeClient, err := p.getOrCreateKubeMetadataClient(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
-	}
 	mapper := kubeClient.RESTMapper()
 
 	// Per the SPIFFE Broker API spec, `core` is the canonical group string
@@ -1177,6 +1205,31 @@ func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.Kub
 	}, nil
 }
 
+// restMapperGeneration returns the mapper's refresh generation and whether the
+// mapper supports discovery refresh. A changed generation means the mapper was
+// replaced, so a failed lookup is worth retrying.
+func restMapperGeneration(mapper meta.RESTMapper) (uint64, bool) {
+	refresher, ok := mapper.(interface {
+		generation() uint64
+	})
+	if !ok {
+		return 0, false
+	}
+	return refresher.generation(), true
+}
+
+// refreshRESTMapperAfterMiss refreshes a mapper that supports discovery
+// invalidation.
+func refreshRESTMapperAfterMiss(mapper meta.RESTMapper) error {
+	refresher, ok := mapper.(interface {
+		refreshAfterMiss() error
+	})
+	if !ok {
+		return nil
+	}
+	return refresher.refreshAfterMiss()
+}
+
 func kubernetesAPIGroup(group string) string {
 	if group == "core" {
 		return ""
@@ -1206,6 +1259,9 @@ func (p *Plugin) findObject(ctx context.Context, kubeClient client.Client, gvk s
 	// UnsafeDisableDeepCopy lets the cache return references into its store.
 	// This path only reads metadata and never mutates returned objects.
 	if err := kubeClient.List(ctx, list, client.UnsafeDisableDeepCopy); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "%s not found", gvk.Kind)
+		}
 		return nil, status.Errorf(codes.Internal, "unable to list %s: %v", gvk.Kind, err)
 	}
 	for i := range list.Items {
@@ -1423,6 +1479,9 @@ func buildKubeClientOptions() (*rest.Config, client.Options, error) {
 	if err != nil {
 		return nil, client.Options{}, fmt.Errorf("unable to build Kubernetes REST mapper: %w", err)
 	}
+	mapper = newRefreshableRESTMapper(mapper, func() (meta.RESTMapper, error) {
+		return apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+	})
 
 	return restConfig, client.Options{
 		Scheme:     k8sScheme,

@@ -61,6 +61,16 @@ data:
           }
         }
       }
+
+      BundlePublisher "k8s_clustertrustbundle" {
+        plugin_data {
+          clusters = {
+            "example-cluster" = {
+              cluster_trust_bundle_name = "spire-bundle"
+            }
+          }
+        }
+      }
     }
 
     health_checks {

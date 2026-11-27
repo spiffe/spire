@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
+	"github.com/spiffe/spire/pkg/server/datastore/sqltest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,12 +25,76 @@ const (
 // TestConnString by the linker or the SQLSTORE_TEST_CONN_STRING environment
 // variable, which takes precedence.
 var (
-	TestDialect    string
-	TestConnString string
+	TestDialect      string
+	TestConnString   string
+	TestROConnString string
 )
 
 func init() {
 	TestConnString = cmp.Or(os.Getenv("SQLSTORE_TEST_CONN_STRING"), TestConnString)
+}
+
+var _ sqltest.DataStoreUnderTest = (*Plugin)(nil)
+
+// unimplementedTests lists the shared suite tests that call methods this
+// datastore does not implement.
+var unimplementedTests = []string{
+	"TestCountRegistrationEntries",
+	"TestDeleteAttestedNodeCascadesEntries",
+	"TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries",
+	"TestDeleteAttestedNodeNonJoinTokenDoesNotCascade",
+	"TestPruneAttestedExpiredNodesCascadesEntries",
+	"TestCreateRegistrationEntry",
+	"TestCreateOrReturnRegistrationEntry",
+	"TestCreateInvalidRegistrationEntry",
+	"TestFetchRegistrationEntriesWithOptionalFields",
+	"TestFetchRegistrationEntries",
+	"TestPruneRegistrationEntries",
+	"TestFetchInexistentRegistrationEntry",
+	"TestListRegistrationEntries",
+	"TestListRegistrationEntriesWhenCruftRowsExist",
+	"TestUpdateRegistrationEntry",
+	"TestUpdateRegistrationEntryWithStoreSvid",
+	"TestUpdateRegistrationEntryWithMask",
+	"TestDeleteRegistrationEntry",
+	"TestListParentIDEntries",
+	"TestListSelectorEntries",
+	"TestListEntriesBySelectorSubset",
+	"TestListSelectorEntriesSuperset",
+	"TestListEntriesBySelectorMatchAny",
+	"TestListEntriesByFederatesWithExact",
+	"TestListEntriesByFederatesWithSubset",
+	"TestListEntriesByFederatesWithMatchAny",
+	"TestListEntriesByFederatesWithSuperset",
+	"TestRegistrationEntriesFederatesWithAgainstMissingBundle",
+	"TestRegistrationEntriesFederatesWithSuccess",
+	"TestRegistrationEntriesFederatesWithMultipleBundles",
+	"TestRegistrationEntriesFederatesWithDuplicateTrustDomain",
+	"TestRegistrationEntriesWithoutFederatesWith",
+	// DeleteBundle is implemented, but these seed the bundle's federated
+	// entries through registration entry methods.
+	"TestDeleteBundleRestrictedByRegistrationEntries",
+	"TestDeleteBundleDeleteRegistrationEntries",
+	"TestDeleteBundleDissociateRegistrationEntries",
+	"TestListRegistrationEntryEvents",
+	"TestPruneRegistrationEntryEvents",
+	"TestRace",
+}
+
+// TestPlugin runs the shared datastore conformance suite against the
+// sqlstorev2 plugin.
+func TestPlugin(t *testing.T) {
+	sqltest.Run(t, sqltest.Config{
+		NewDataStore: func(log logrus.FieldLogger) sqltest.DataStoreUnderTest {
+			return New(log)
+		},
+		Dialect:               TestDialect,
+		ConnString:            TestConnString,
+		ROConnString:          cmp.Or(os.Getenv("SQLSTORE_TEST_RO_CONN_STRING"), TestROConnString),
+		ExpectedSchemaVersion: latestSchemaVersion,
+		ExpectedCodeVersion:   codeVersion.String(),
+		SkipTests:             unimplementedTests,
+	})
 }
 
 func TestNewAndClose(t *testing.T) {
@@ -138,4 +204,16 @@ func requireNotConfigured(t *testing.T, ds *Plugin) {
 func isolatePostgresEnv(t *testing.T) {
 	t.Setenv("PGPASSWORD", "")
 	t.Setenv("PGPASSFILE", filepath.Join(t.TempDir(), "nonexistent"))
+}
+
+func TestWithDescribeExecMode(t *testing.T) {
+	for _, tt := range []struct{ dsn, expected string }{
+		{"postgres://u@h/db?sslmode=disable", "postgres://u@h/db?default_query_exec_mode=cache_describe&sslmode=disable"},
+		{"postgresql://u@h/db", "postgresql://u@h/db?default_query_exec_mode=cache_describe"},
+		{"host=h dbname=db", "host=h dbname=db default_query_exec_mode=cache_describe"},
+		{"host=h default_query_exec_mode=exec", "host=h default_query_exec_mode=exec"},
+		{"postgres://u@h:bad/db", "postgres://u@h:bad/db"},
+	} {
+		require.Equal(t, tt.expected, withDescribeExecMode(tt.dsn), tt.dsn)
+	}
 }

@@ -100,6 +100,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	}
 
 	client := serverClient.NewSVIDClient()
+	requestedAt := time.Now()
 	resp, err := client.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 		Csr: csr,
 		Ttl: ttl,
@@ -123,7 +124,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	}
 
 	eol := time.Unix(resp.Svid.ExpiresAt, 0)
-	if time.Until(eol) < c.ttl {
+	if serverutil.LifetimeCapped(requestedAt, c.ttl, eol) {
 		env.ErrPrintf("X509-SVID lifetime was capped shorter than specified ttl; expires %q\n", eol.UTC().Format(time.RFC3339))
 	}
 

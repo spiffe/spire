@@ -270,6 +270,8 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
 }
 
+const maxTrustBundleSize = 4 << 20
+
 func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([]byte, error) {
 	var req *http.Request
 	client := http.DefaultClient
@@ -300,9 +302,12 @@ func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error downloading trust bundle: %s", resp.Status)
 	}
-	pemBytes, err := io.ReadAll(resp.Body)
+	pemBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxTrustBundleSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %w", trustBundleURL, err)
+	}
+	if len(pemBytes) > maxTrustBundleSize {
+		return nil, fmt.Errorf("trust bundle from URL %s exceeds %d bytes", trustBundleURL, maxTrustBundleSize)
 	}
 
 	return pemBytes, nil

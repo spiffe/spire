@@ -473,7 +473,7 @@ func (e *Endpoints) handleShutdown(server *grpc.Server, errChan <-chan error, lo
 	case <-stopComplete:
 		log.Info("Graceful stop successful")
 	}
-	<-errChan
+	<-errChan //nolint:errcheck // Only wait for Serve to finish during shutdown.
 	log.Info("Server APIs have stopped")
 }
 

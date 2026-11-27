@@ -48,12 +48,15 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | BundlePublisher    | [aws_rolesanywhere_trustanchor](/doc/plugin_server_bundlepublisher_aws_rolesanywhere_trustanchor.md) | Publishes the trust bundle to an AWS IAM Roles Anywhere trust anchor.                                                                                               |
 | BundlePublisher    | [azure_blob](/doc/plugin_server_bundlepublisher_azure_blob.md)                                       | Publishes the trust bundle to an Azure Blob Storage account.                                                                                                        |
 | BundlePublisher    | [k8s_configmap](/doc/plugin_server_bundlepublisher_k8s_configmap.md)                                 | Publishes the trust bundle to a Kubernetes ConfigMap.                                                                                                               |
+| BundlePublisher    | [k8s_clustertrustbundle](/doc/plugin_server_bundlepublisher_k8s_clustertrustbundle.md)               | Publishes the X.509 authorities of the trust bundle to a Kubernetes ClusterTrustBundle.                                                                             |
 
 ## Server configuration file
 
 The following table outlines the configuration options for SPIRE server. These may be set in a top-level `server { ... }` section of the configuration file. Most options have a corresponding CLI flag which, if set, takes precedence over values defined in the file.
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
+
+YAML configuration files are also supported as an experimental feature. Please see [YAML Configuration](yaml_configuration.md) for details, including the requirements for external plugins.
 
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
@@ -131,6 +134,7 @@ a no-op, so a scheduled reopen on an idle service does not consume the
 |:-------------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------:|
 | `agent_spiffe_id_as_selector`   | Enable adding the agent spiffe_id to the list of node selectors automatically.                                                                                                                                         | false                              |
 | `allow_nonconforming_agent_ids` | Allow node attestors to produce agent IDs outside of `/spire/agent/<attestor>/`. When false, such attestations fail.                                                                                                   | false                              |
+| `enable_yaml_config`            | Must be set to true to use a YAML configuration file; only available in YAML. See [YAML Configuration](yaml_configuration.md).                                                                                         | false                              |
 | `cache_reload_interval`         | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s                                 |
 | `full_cache_reload_interval`    | How often to a full reload of the cache from the database when using the events based cache.                                                                                                                           | 24h                                |
 | `events_based_cache`            | Use events to update the cache with what's changed since the last update. Enabling this will reduce overhead on the database.                                                                                          | false                              |

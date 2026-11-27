@@ -400,7 +400,7 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 
 			// Verify using get
 			getResp, err := test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
-			require.Equal(t, err, tt.expectedErr)
+			require.Equal(t, tt.expectedErr, err)
 			spiretest.RequireProtoEqual(t, getResp, tt.expectedResponse)
 		})
 	}

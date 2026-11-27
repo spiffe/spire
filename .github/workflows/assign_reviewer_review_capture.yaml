@@ -8,6 +8,11 @@ name: assign-reviewer-review-capture
 # assign-reviewer-review-apply workflow (triggered via workflow_run) needs to
 # move the assignee with a write token.
 #
+# GitHub holds this run for approval on a first-time contributor's pull
+# request and creates none while the pull request has a merge conflict. The
+# assign-reviewer-reconcile workflow picks up the review transitions lost
+# that way.
+#
 # It never writes to the repository and never checks out or runs any PR code.
 # Note that pull_request_review runs the PR's own copy of this workflow, so a
 # fork PR can run a modified version of this file. That gains no privileges

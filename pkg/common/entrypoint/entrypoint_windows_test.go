@@ -119,7 +119,6 @@ func TestNotAService(t *testing.T) {
 					return testCase.retCode
 				}, testCase.sc)
 				retCodeCh <- ep.Main()
-				assert.True(t, true)
 			}()
 
 			assertWithTimeout(t, testCase.retCode, retCodeCh)

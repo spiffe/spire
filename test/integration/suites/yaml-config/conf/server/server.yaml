@@ -1,0 +1,38 @@
+server:
+  bind_address: "0.0.0.0"
+  bind_port: 8081
+  trust_domain: "domain.test"
+  data_dir: "/opt/spire/data/server"
+  log_level: "DEBUG"
+  ca_subject:
+    country: ["US"]
+    organization: ["SPIFFE"]
+  experimental:
+    enable_yaml_config: true
+  federation:
+    bundle_endpoint:
+      address: "0.0.0.0"
+      port: 8443
+      profile:
+        https_spiffe: {}
+
+plugins:
+  DataStore:
+    sql:
+      plugin_data:
+        database_type: "sqlite3"
+        connection_string: "/opt/spire/data/server/datastore.sqlite3"
+        max_open_conns: 10
+
+  NodeAttestor:
+    join_token:
+      plugin_data: {}
+
+  KeyManager:
+    disk:
+      plugin_data_file: "/opt/spire/conf/server/keymanager.yaml"
+
+health_checks:
+  listener_enabled: true
+  bind_address: "0.0.0.0"
+  bind_port: "8080"

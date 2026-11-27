@@ -10,6 +10,10 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
+	"go.yaml.in/yaml/v3"
 )
 
 const (
@@ -46,12 +50,20 @@ func IsSQLiteDbType(dbType string) bool {
 	return dbType == SQLite
 }
 
-// BuildConfig decodes the HCL datastore configuration and resolves the
-// database_type node into a DBTypeConfig.
-func BuildConfig(hclConfiguration string) (*Configuration, error) {
+// BuildConfig decodes the datastore configuration and resolves its database
+// type into a DBTypeConfig.
+func BuildConfig(configuration string, format catalog.ConfigFormat) (*Configuration, error) {
 	config := &Configuration{}
-	if err := hcl.Decode(config, hclConfiguration); err != nil {
+	if err := plugindecode.DecodeConfig(configuration, format, config); err != nil {
 		return nil, err
+	}
+
+	if format == catalog.ConfigFormatYAML {
+		config.DBTypeConfig = &DBTypeConfig{}
+		if config.DatabaseTypeYAML != nil {
+			config.DBTypeConfig = &config.DatabaseTypeYAML.DBTypeConfig
+		}
+		return config, nil
 	}
 
 	dbTypeConfig, err := ParseDatabaseTypeASTNode(config.DatabaseTypeNode)
@@ -106,6 +118,44 @@ func ParseDatabaseTypeASTNode(node ast.Node) (*DBTypeConfig, error) {
 
 	dbTypeConfig.DatabaseType = databaseType
 	return dbTypeConfig, nil
+}
+
+// DatabaseTypeYAML is the YAML form of database_type: either a scalar such as
+// "sqlite3", or a mapping with a single key such as "aws_postgres".
+type DatabaseTypeYAML struct {
+	DBTypeConfig
+}
+
+func (d *DatabaseTypeYAML) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		d.DatabaseType = node.Value
+		return nil
+	}
+	if node.Kind != yaml.MappingNode {
+		return errors.New("malformed database type configuration")
+	}
+	if len(node.Content) != 2 {
+		return errors.New("exactly one database type is expected")
+	}
+
+	key := node.Content[0].Value
+	switch key {
+	case AWSMySQL, AWSPostgreSQL, AzureMySQL, AzurePostgreSQL:
+	default:
+		return fmt.Errorf("unknown database type: %s", key)
+	}
+	value := node.Content[1]
+	if value.Kind == yaml.AliasNode {
+		value = value.Alias
+	}
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("%s options must be a mapping; use {} for no options", key)
+	}
+	if err := yamlconfig.DecodeNode(node, &d.DBTypeConfig); err != nil {
+		return fmt.Errorf("failed to decode configuration: %w", err)
+	}
+	d.DatabaseType = key
+	return nil
 }
 
 // ConfigValidate performs static validation of a decoded datastore config.

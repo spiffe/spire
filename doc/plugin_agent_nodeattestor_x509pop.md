@@ -7,6 +7,10 @@ provisioned with an x509 identity through an out-of-band mechanism and responds
 to a signature based proof-of-possession challenge issued by the server
 plugin.
 
+The hash algorithm used to sign the challenge is selected by the server plugin
+(see its `hash_algorithm` setting) and requires no agent configuration. When the
+challenge does not specify one, SHA-256 is used.
+
 The SPIFFE ID produced by the [server-side `x509pop` plugin](plugin_server_nodeattestor_x509pop.md) is based on the certificate fingerprint, where the fingerprint is defined as the
 SHA1 hash of the ASN.1 DER encoding of the identity certificate. The SPIFFE ID has the form:
 
