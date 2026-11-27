@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -22,6 +23,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -572,6 +574,37 @@ func TestBadProto(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, j)
 	require.Contains(t, err.Error(), `failed to load journal from datastore: unable to unmarshal entries from CA journal record:`)
+}
+
+func TestLoadJournalMatchesAnySubjectKeyIDDerivation(t *testing.T) {
+	// Upstream authorities may fill in the subject key ID of the CA
+	// certificate themselves, e.g. with a SHA-256 hash of the public key. The
+	// journal must be found anyway.
+	test := setupJournalTest(t)
+	kmKeys, err := test.jc.cat.GetKeyManager().GetKeys(ctx)
+	require.NoError(t, err)
+	subjectKeyIDs, err := x509util.GetSubjectKeyIDs(kmKeys[0].Public())
+	require.NoError(t, err)
+	require.Len(t, subjectKeyIDs, 2)
+
+	entriesBytes, err := proto.Marshal(&journal.Entries{})
+	require.NoError(t, err)
+
+	for _, subjectKeyID := range subjectKeyIDs {
+		authorityID := x509util.SubjectKeyIDToString(subjectKeyID)
+		t.Run(authorityID, func(t *testing.T) {
+			test := setupJournalTest(t)
+			stored, err := test.ds.SetCAJournal(ctx, &datastore.CAJournal{
+				Data:                  entriesBytes,
+				ActiveX509AuthorityID: authorityID,
+			})
+			require.NoError(t, err)
+
+			j := test.loadJournal(t)
+			require.Equal(t, stored.ID, j.caJournalID)
+			require.Equal(t, authorityID, j.activeX509AuthorityID)
+		})
+	}
 }
 
 func getOneX509AuthorityID(ctx context.Context, t *testing.T, km keymanager.KeyManager) string {
