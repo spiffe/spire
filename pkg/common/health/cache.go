@@ -117,6 +117,14 @@ func (c *cache) runCheck(ctx context.Context, name string, checkable Checkable) 
 		now := c.clk.Now()
 		state, err := verifyStatus(checkable)
 
+		// If the context was canceled while the check was running, the
+		// subsystems being checked may already be shutting down, so the
+		// result can't be trusted. Drop it instead of logging spurious
+		// failures.
+		if ctx.Err() != nil {
+			return
+		}
+
 		checkState := checkState{
 			details:   state,
 			checkTime: c.clk.Now(),
