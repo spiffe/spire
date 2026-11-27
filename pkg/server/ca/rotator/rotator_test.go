@@ -87,7 +87,7 @@ func TestHealthCheckRecoversAfterSuccessfulRotation(t *testing.T) {
 	// its next slot.
 	test.clock.Add(time.Minute + time.Second)
 
-	// Only the JWT key fails to rotate. The X509 CA and WIT key keep
+	// Only the JWT key fails to rotate. The X509 CA, WIT and WAG keys keep
 	// succeeding, which must not clear the failure count.
 	test.fakeCAManager.prepareJWTKeyErr = errors.New("oh no")
 	for range failedRotationThreshold + 1 {
@@ -112,10 +112,12 @@ func TestInitialize(t *testing.T) {
 		prepareJWTKeyErr error
 		prepareX509CAErr error
 		prepareWITKeyErr error
+		prepareWAGKeyErr error
 
 		expectCurrentX509CAID string
 		expectCurrentJWTKeyID string
 		expectCurrentWITKeyID string
+		expectCurrentWAGKeyID string
 		moveToPrepare         bool
 		moveToActivate        bool
 	}{
@@ -125,6 +127,7 @@ func TestInitialize(t *testing.T) {
 			expectCurrentJWTKeyID: "jwt-a",
 			expectCurrentX509CAID: "x509-a",
 			expectCurrentWITKeyID: "wit-a",
+			expectCurrentWAGKeyID: "wag-a",
 		},
 		{
 			name:             "failed to prepare current X509CA",
@@ -142,10 +145,16 @@ func TestInitialize(t *testing.T) {
 			prepareWITKeyErr: errors.New("oh no"),
 		},
 		{
+			name:             "failed to prepare current WAG Key",
+			expectError:      "oh no",
+			prepareWAGKeyErr: errors.New("oh no"),
+		},
+		{
 			name:                  "prepare and activate current when does not exist",
 			expectCurrentJWTKeyID: "jwt-a",
 			expectCurrentX509CAID: "x509-a",
 			expectCurrentWITKeyID: "wit-a",
+			expectCurrentWAGKeyID: "wag-a",
 		},
 		{
 			name:                  "prepare next",
@@ -153,6 +162,7 @@ func TestInitialize(t *testing.T) {
 			expectCurrentJWTKeyID: "jwt-a",
 			expectCurrentX509CAID: "x509-a",
 			expectCurrentWITKeyID: "wit-a",
+			expectCurrentWAGKeyID: "wag-a",
 			moveToPrepare:         true,
 		},
 		{
@@ -177,11 +187,19 @@ func TestInitialize(t *testing.T) {
 			moveToPrepare:    true,
 		},
 		{
+			name:             "failed to prepare next WAG Key",
+			hasCurrent:       true,
+			expectError:      "oh no",
+			prepareWAGKeyErr: errors.New("oh no"),
+			moveToPrepare:    true,
+		},
+		{
 			name:                  "activate next",
 			hasCurrent:            true,
 			expectCurrentJWTKeyID: "jwt-b",
 			expectCurrentX509CAID: "x509-b",
 			expectCurrentWITKeyID: "wit-b",
+			expectCurrentWAGKeyID: "wag-b",
 			moveToActivate:        true,
 		},
 		{
@@ -190,6 +208,7 @@ func TestInitialize(t *testing.T) {
 			expectCurrentJWTKeyID: "jwt-b",
 			expectCurrentX509CAID: "x509-b",
 			expectCurrentWITKeyID: "wit-b",
+			expectCurrentWAGKeyID: "wag-b",
 			moveToActivate:        true,
 		},
 	} {
@@ -200,12 +219,15 @@ func TestInitialize(t *testing.T) {
 			test.fakeCAManager.currentJWTKeySlot = createSlot("jwt-a", now, tt.hasCurrent)
 			test.fakeCAManager.currentX509CASlot = createSlot("x509-a", now, tt.hasCurrent)
 			test.fakeCAManager.currentWITKeySlot = createSlot("wit-a", now, tt.hasCurrent)
+			test.fakeCAManager.currentWAGKeySlot = createSlot("wag-a", now, tt.hasCurrent)
 			test.fakeCAManager.nextJWTKeySlot = createSlot("jwt-b", now, tt.hasNext)
 			test.fakeCAManager.nextX509CASlot = createSlot("x509-b", now, tt.hasNext)
 			test.fakeCAManager.nextWITKeySlot = createSlot("wit-b", now, tt.hasNext)
+			test.fakeCAManager.nextWAGKeySlot = createSlot("wag-b", now, tt.hasNext)
 			test.fakeCAManager.prepareJWTKeyErr = tt.prepareJWTKeyErr
 			test.fakeCAManager.prepareX509CAErr = tt.prepareX509CAErr
 			test.fakeCAManager.prepareWITKeyErr = tt.prepareWITKeyErr
+			test.fakeCAManager.prepareWAGKeyErr = tt.prepareWAGKeyErr
 
 			switch {
 			case tt.moveToPrepare:
@@ -225,18 +247,22 @@ func TestInitialize(t *testing.T) {
 			require.Equal(t, tt.expectCurrentJWTKeyID, test.fakeCAManager.currentJWTKeySlot.KmKeyID())
 			require.Equal(t, tt.expectCurrentX509CAID, test.fakeCAManager.currentX509CASlot.KmKeyID())
 			require.Equal(t, tt.expectCurrentWITKeyID, test.fakeCAManager.currentWITKeySlot.KmKeyID())
+			require.Equal(t, tt.expectCurrentWAGKeyID, test.fakeCAManager.currentWAGKeySlot.KmKeyID())
 			require.True(t, test.fakeCAManager.currentX509CASlot.isActive)
 			require.True(t, test.fakeCAManager.currentJWTKeySlot.isActive)
 			require.True(t, test.fakeCAManager.currentWITKeySlot.isActive)
+			require.True(t, test.fakeCAManager.currentWAGKeySlot.isActive)
 
 			if tt.moveToPrepare {
 				require.False(t, test.fakeCAManager.nextX509CASlot.IsEmpty())
 				require.False(t, test.fakeCAManager.nextJWTKeySlot.IsEmpty())
 				require.False(t, test.fakeCAManager.nextWITKeySlot.IsEmpty())
+				require.False(t, test.fakeCAManager.nextWAGKeySlot.IsEmpty())
 			} else {
 				require.True(t, test.fakeCAManager.nextX509CASlot.IsEmpty())
 				require.True(t, test.fakeCAManager.nextJWTKeySlot.IsEmpty())
 				require.True(t, test.fakeCAManager.nextWITKeySlot.IsEmpty())
+				require.True(t, test.fakeCAManager.nextWAGKeySlot.IsEmpty())
 			}
 		})
 	}
@@ -469,6 +495,59 @@ func TestRunWITKeyRotation(t *testing.T) {
 	require.True(t, test.fakeCAManager.nextWITKeySlot.IsEmpty())
 }
 
+func TestRunWAGKeyRotation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	test := setupTest(t)
+
+	go func() {
+		err := test.rotator.Run(ctx)
+		assert.NoError(t, err)
+	}()
+	test.clock.WaitForTickerMulti(time.Minute, 3, "waiting for the Run() ticker")
+
+	require.Equal(t, "wag-a", test.fakeCAManager.currentWAGKeySlot.keyID)
+	require.True(t, test.fakeCAManager.currentWAGKeySlot.isActive)
+	// No next prepared
+	require.True(t, test.fakeCAManager.nextWAGKeySlot.IsEmpty())
+
+	// Move to preparation mark nothing should change
+	test.clock.Add(time.Minute)
+
+	require.Equal(t, "wag-a", test.fakeCAManager.currentWAGKeySlot.keyID)
+	require.True(t, test.fakeCAManager.currentWAGKeySlot.isActive)
+	require.Equal(t, "wag-b", test.fakeCAManager.nextWAGKeySlot.keyID)
+	require.True(t, test.fakeCAManager.nextWAGKeySlot.IsEmpty())
+
+	// Move after preparation mark
+	test.clock.Add(30 * time.Second)
+
+	test.fakeCAManager.waitWAGKeyUpdate(ctx, t)
+
+	require.Equal(t, "wag-a", test.fakeCAManager.currentWAGKeySlot.keyID)
+	require.True(t, test.fakeCAManager.currentWAGKeySlot.isActive)
+	require.Equal(t, "wag-b", test.fakeCAManager.nextWAGKeySlot.keyID)
+	require.False(t, test.fakeCAManager.nextWAGKeySlot.IsEmpty())
+
+	// Move to activation mark, nothing should change
+	test.clock.Add(30 * time.Second)
+
+	require.Equal(t, "wag-a", test.fakeCAManager.currentWAGKeySlot.keyID)
+	require.True(t, test.fakeCAManager.currentWAGKeySlot.isActive)
+	require.Equal(t, "wag-b", test.fakeCAManager.nextWAGKeySlot.keyID)
+	require.False(t, test.fakeCAManager.nextWAGKeySlot.IsEmpty())
+
+	// Move after activation mark, next move to current
+	test.clock.Add(30 * time.Second)
+
+	test.fakeCAManager.waitWAGKeyUpdate(ctx, t)
+
+	require.Equal(t, "wag-b", test.fakeCAManager.currentWAGKeySlot.keyID)
+	require.True(t, test.fakeCAManager.currentWAGKeySlot.isActive)
+	require.Equal(t, "wag-a", test.fakeCAManager.nextWAGKeySlot.keyID)
+	require.True(t, test.fakeCAManager.nextWAGKeySlot.IsEmpty())
+}
+
 func TestPruneBundle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -545,6 +624,7 @@ func setupTest(tb testing.TB) *rotationTest {
 		x509CACh:          make(chan struct{}, 1),
 		jwtKeyCh:          make(chan struct{}, 1),
 		witKeyCh:          make(chan struct{}, 1),
+		wagKeyCh:          make(chan struct{}, 1),
 		pruneBundleCh:     make(chan struct{}, 1),
 		pruneCAJournalsCh: make(chan struct{}, 1),
 	}
@@ -554,9 +634,11 @@ func setupTest(tb testing.TB) *rotationTest {
 	fManager.currentJWTKeySlot = createSlot("jwt-a", now, true)
 	fManager.currentX509CASlot = createSlot("x509-a", now, true)
 	fManager.currentWITKeySlot = createSlot("wit-a", now, true)
+	fManager.currentWAGKeySlot = createSlot("wag-a", now, true)
 	fManager.nextJWTKeySlot = createSlot("jwt-b", now, false)
 	fManager.nextX509CASlot = createSlot("x509-b", now, false)
 	fManager.nextWITKeySlot = createSlot("wit-b", now, false)
+	fManager.nextWAGKeySlot = createSlot("wag-b", now, false)
 
 	rotator := NewRotator(Config{
 		Manager:       fManager,
@@ -595,9 +677,14 @@ type fakeCAManager struct {
 	nextWITKeySlot    *fakeSlot
 	prepareWITKeyErr  error
 
+	currentWAGKeySlot *fakeSlot
+	nextWAGKeySlot    *fakeSlot
+	prepareWAGKeyErr  error
+
 	x509CACh chan struct{}
 	jwtKeyCh chan struct{}
 	witKeyCh chan struct{}
+	wagKeyCh chan struct{}
 
 	pruneBundleWasCalled     bool
 	pruneBundleCh            chan struct{}
@@ -759,6 +846,49 @@ func (f *fakeCAManager) RotateWITKey(context.Context) {
 	f.witKeyCh <- struct{}{}
 }
 
+func (f *fakeCAManager) GetCurrentWAGKeySlot() manager.Slot {
+	return f.currentWAGKeySlot
+}
+
+func (f *fakeCAManager) GetNextWAGKeySlot() manager.Slot {
+	return f.nextWAGKeySlot
+}
+
+func (f *fakeCAManager) PrepareWAGKey(context.Context) error {
+	f.cleanWAGKeyCh()
+	if f.prepareWAGKeyErr != nil {
+		return f.prepareWAGKeyErr
+	}
+
+	slot := f.nextWAGKeySlot
+	if !f.currentWAGKeySlot.hasValue {
+		slot = f.currentWAGKeySlot
+	}
+
+	slot.hasValue = true
+	slot.preparationTime = f.clk.Now().Add(time.Minute)
+	slot.activationTime = f.clk.Now().Add(2 * time.Minute)
+	f.wagKeyCh <- struct{}{}
+	return nil
+}
+
+func (f *fakeCAManager) ActivateWAGKey(context.Context) {
+	f.cleanWAGKeyCh()
+	f.currentWAGKeySlot.isActive = true
+	f.wagKeyCh <- struct{}{}
+}
+
+func (f *fakeCAManager) RotateWAGKey(context.Context) {
+	f.cleanWAGKeyCh()
+	currentID := f.currentWAGKeySlot.keyID
+
+	f.currentWAGKeySlot.keyID = f.nextWAGKeySlot.keyID
+	f.currentWAGKeySlot.isActive = true
+	f.nextWAGKeySlot.keyID = currentID
+	f.nextWAGKeySlot.hasValue = false
+	f.wagKeyCh <- struct{}{}
+}
+
 func (f *fakeCAManager) SubscribeToLocalBundle(ctx context.Context) error {
 	return nil
 }
@@ -802,6 +932,13 @@ func (f *fakeCAManager) cleanWITKeyCh() {
 	}
 }
 
+func (f *fakeCAManager) cleanWAGKeyCh() {
+	select {
+	case <-f.wagKeyCh:
+	default:
+	}
+}
+
 func (f *fakeCAManager) waitX509CAUpdate(ctx context.Context, t *testing.T) {
 	select {
 	case <-ctx.Done():
@@ -823,6 +960,14 @@ func (f *fakeCAManager) waitWITKeyUpdate(ctx context.Context, t *testing.T) {
 	case <-ctx.Done():
 		assert.Fail(t, "context finished")
 	case <-f.witKeyCh:
+	}
+}
+
+func (f *fakeCAManager) waitWAGKeyUpdate(ctx context.Context, t *testing.T) {
+	select {
+	case <-ctx.Done():
+		assert.Fail(t, "context finished")
+	case <-f.wagKeyCh:
 	}
 }
 

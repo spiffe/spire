@@ -31,6 +31,8 @@ type bundleTest struct {
 	jwtKeyNotExpired *common.PublicKey
 	witKeyExpired    *common.PublicKey
 	witKeyNotExpired *common.PublicKey
+	wagKeyExpired    *common.PublicKey
+	wagKeyNotExpired *common.PublicKey
 }
 
 func TestPruneBundle(t *testing.T) {
@@ -116,6 +118,31 @@ func TestPruneBundle(t *testing.T) {
 				[]*common.PublicKey{test.jwtKeyNotExpired},
 				nil,
 			),
+			expiration: test.currentTime,
+			changed:    true,
+		},
+		{
+			name: "fail if all WAG expired",
+			bundle: withWAGKeys(createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired},
+				[]*common.PublicKey{test.witKeyNotExpired},
+			), test.wagKeyExpired),
+			expiration:  test.currentTime,
+			expectedErr: "would prune all WAG signing keys",
+		},
+		{
+			name: "prunes expired WAG keys",
+			bundle: withWAGKeys(createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+				[]*common.PublicKey{test.witKeyNotExpired, test.witKeyExpired},
+			), test.wagKeyNotExpired, test.wagKeyExpired),
+			newBundle: withWAGKeys(createBundle(
+				[]*x509.Certificate{test.certNotExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired},
+				[]*common.PublicKey{test.witKeyNotExpired},
+			), test.wagKeyNotExpired),
 			expiration: test.currentTime,
 			changed:    true,
 		},
@@ -521,6 +548,29 @@ func createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey, witKey
 	return bundle
 }
 
+func withWAGKeys(bundle *common.Bundle, wagKeys ...*common.PublicKey) *common.Bundle {
+	bundle.WagSigningKeys = wagKeys
+	return bundle
+}
+
+func TestMergeBundlesWAGKeys(t *testing.T) {
+	keyA := &common.PublicKey{Kid: "a", PkixBytes: []byte("a")}
+	keyB := &common.PublicKey{Kid: "b", PkixBytes: []byte("b")}
+
+	a := &common.Bundle{TrustDomainId: "spiffe://foo", WagSigningKeys: []*common.PublicKey{keyA}}
+
+	merged, changed := MergeBundles(a, &common.Bundle{WagSigningKeys: []*common.PublicKey{keyA}})
+	require.False(t, changed)
+	spiretest.RequireProtoEqual(t, a, merged)
+
+	merged, changed = MergeBundles(a, &common.Bundle{WagSigningKeys: []*common.PublicKey{keyA, keyB}})
+	require.True(t, changed)
+	spiretest.RequireProtoEqual(t, &common.Bundle{
+		TrustDomainId:  "spiffe://foo",
+		WagSigningKeys: []*common.PublicKey{keyA, keyB},
+	}, merged)
+}
+
 func setupTest(t *testing.T) *bundleTest {
 	// currentTime is a point in time between expired and not-expired certs and keys
 	currentTime, err := time.Parse(time.RFC3339, "2018-02-10T01:35:00+00:00")
@@ -546,5 +596,7 @@ func setupTest(t *testing.T) *bundleTest {
 		jwtKeyNotExpired: &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()},
 		witKeyExpired:    &common.PublicKey{NotAfter: expiredKeyTime.Unix()},
 		witKeyNotExpired: &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()},
+		wagKeyExpired:    &common.PublicKey{NotAfter: expiredKeyTime.Unix()},
+		wagKeyNotExpired: &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()},
 	}
 }

@@ -44,6 +44,13 @@ type CAManager interface {
 	ActivateWITKey(ctx context.Context)
 	RotateWITKey(ctx context.Context)
 
+	GetCurrentWAGKeySlot() manager.Slot
+	GetNextWAGKeySlot() manager.Slot
+
+	PrepareWAGKey(ctx context.Context) error
+	ActivateWAGKey(ctx context.Context)
+	RotateWAGKey(ctx context.Context)
+
 	SubscribeToLocalBundle(ctx context.Context) error
 
 	PruneBundle(ctx context.Context) error
@@ -160,7 +167,13 @@ func (r *Rotator) rotate(ctx context.Context) error {
 		r.c.Log.WithError(witKeyErr).Error("Unable to rotate WIT key")
 	}
 
-	err := errors.Join(x509CAErr, jwtKeyErr, witKeyErr)
+	wagKeyErr := r.rotateWAGKey(ctx)
+	if wagKeyErr != nil {
+		atomic.AddUint64(&r.failedRotationNum, 1)
+		r.c.Log.WithError(wagKeyErr).Error("Unable to rotate WAG key")
+	}
+
+	err := errors.Join(x509CAErr, jwtKeyErr, witKeyErr, wagKeyErr)
 	if err == nil {
 		// All keys are rotated at this time, so we can reset any failed
 		// rotation count.
@@ -219,6 +232,33 @@ func (r *Rotator) rotateWITKey(ctx context.Context) error {
 
 	if currentWITKey.ShouldActivateNext(now) {
 		r.c.Manager.RotateWITKey(ctx)
+	}
+
+	return nil
+}
+
+func (r *Rotator) rotateWAGKey(ctx context.Context) error {
+	now := r.c.Clock.Now()
+
+	currentWAGKey := r.c.Manager.GetCurrentWAGKeySlot()
+	// if there is no current keypair set, generate one
+	if currentWAGKey.IsEmpty() {
+		if err := r.c.Manager.PrepareWAGKey(ctx); err != nil {
+			return err
+		}
+		r.c.Manager.ActivateWAGKey(ctx)
+	}
+
+	// if there is no next keypair set and the current is within the
+	// preparation threshold, generate one.
+	if r.c.Manager.GetNextWAGKeySlot().IsEmpty() && currentWAGKey.ShouldPrepareNext(now) {
+		if err := r.c.Manager.PrepareWAGKey(ctx); err != nil {
+			return err
+		}
+	}
+
+	if currentWAGKey.ShouldActivateNext(now) {
+		r.c.Manager.RotateWAGKey(ctx)
 	}
 
 	return nil

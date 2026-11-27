@@ -146,6 +146,8 @@ a no-op, so a scheduled reopen on an idle service does not consume the
 | `enable_wit_svids`              | Enable the WIT-SVID profile and its APIs. When disabled, WIT-SVID APIs return Unimplemented                                                                                                                            | false                              |
 | `wit_issuer`                    | The issuer claim used when minting WIT-SVIDs                                                                                                                                                                           |                                    |
 | `default_wit_svid_ttl`          | The default WIT-SVID TTL. See [CA and SVID lifetimes](#ca-and-svid-lifetimes).                                                                                                                                         | 1h                                 |
+| `enable_wags`                   | Enable Workload Authorization Grant (WAG) support.  | false                              |
+| `wag_key_type`                  | The key type used for WAG signing keys (rsa-2048, rsa-4096, ec-p256, ec-p384)                                                                                                                                          | `ca_key_type`, else ec-p256        |
 
 | ratelimit     | Description                                                                                                                                        | Default |
 |:--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|---------|

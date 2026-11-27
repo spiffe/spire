@@ -51,6 +51,7 @@ func TestAllTrueMasks(t *testing.T) {
 		RootCas:         true,
 		JwtSigningKeys:  true,
 		WitSigningKeys:  true,
+		WagSigningKeys:  true,
 		RefreshHint:     true,
 		SequenceNumber:  true,
 		X509TaintedKeys: true,

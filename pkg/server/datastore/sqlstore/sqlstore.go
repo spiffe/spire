@@ -1193,6 +1193,10 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 		bundle.WitSigningKeys = newBundle.WitSigningKeys
 	}
 
+	if inputMask.WagSigningKeys {
+		bundle.WagSigningKeys = newBundle.WagSigningKeys
+	}
+
 	if inputMask.SequenceNumber {
 		bundle.SequenceNumber = newBundle.SequenceNumber
 	}

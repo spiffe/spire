@@ -31,6 +31,8 @@ const (
 	NextJWTKeySlot
 	CurrentWITKeySlot
 	NextWITKeySlot
+	CurrentWAGKeySlot
+	NextWAGKeySlot
 )
 
 type Slot interface {
@@ -77,10 +79,11 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		telemetry.X509CAs: len(entries.X509CAs),
 		telemetry.JWTKeys: len(entries.JwtKeys),
 		telemetry.WITKeys: len(entries.WitKeys),
+		telemetry.WAGKeys: len(entries.WagKeys),
 	}).Info("Journal loaded")
 
 	// filter out local JwtKeys and X509CAs that do not exist in the database bundle
-	entries.JwtKeys, entries.X509CAs, entries.WitKeys, err = s.filterInvalidEntries(ctx, entries)
+	entries.JwtKeys, entries.X509CAs, entries.WitKeys, entries.WagKeys, err = s.filterInvalidEntries(ctx, entries)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -102,6 +105,11 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	}
 
 	currentWITKey, nextWITKey, err := s.getWITKeysSlots(ctx, entries.WitKeys)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	currentWAGKey, nextWAGKey, err := s.getWAGKeysSlots(ctx, entries.WagKeys)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -129,6 +137,14 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 
 	if nextWITKey != nil {
 		slots[NextWITKeySlot] = nextWITKey
+	}
+
+	if currentWAGKey != nil {
+		slots[CurrentWAGKeySlot] = currentWAGKey
+	}
+
+	if nextWAGKey != nil {
+		slots[NextWAGKeySlot] = nextWAGKey
 	}
 
 	return loadedJournal, slots, nil
@@ -325,6 +341,68 @@ func (s *SlotLoader) getWITKeysSlots(ctx context.Context, entries []*journal.WIT
 	return current, next, nil
 }
 
+// getWAGKeysSlots returns WAGKey slots based on the status of the slots.
+// - If all status are unknown, choose the two newest on the list
+// - Active entry is returned on current if set
+// - Newest Prepared or Old entry is returned on next
+func (s *SlotLoader) getWAGKeysSlots(ctx context.Context, entries []*journal.WAGKeyEntry) (*wagKeySlot, *wagKeySlot, error) {
+	var current *wagKeySlot
+	var next *wagKeySlot
+
+	// Search from oldest
+	for _, entry := range slices.Backward(entries) {
+		slot, err := s.tryLoadWAGKeySlotFromEntry(ctx, entry)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Unable to load slot
+		// TODO: the previous implementation analyzed only the last two entries,
+		// and if those slots were empty, we created new slots.
+		// Now we iterate through all the file, to try to get a useful slot.
+		// Maybe there is room for improvement here, by just verifying if the
+		// bundle is not expired?
+		if slot == nil {
+			continue
+		}
+
+		switch slot.Status() {
+		// ACTIVE entry must go into current slot
+		case journal.Status_ACTIVE:
+			current = slot
+
+		// Set OLD or PREPARED as next slot
+		// Get the newest, since Prepared entry must always be located before an Old entry
+		default:
+			if next == nil {
+				next = slot
+			}
+		}
+
+		// If both are set finish iteration
+		if next != nil && current != nil {
+			break
+		}
+	}
+
+	switch {
+	case current != nil:
+		// current is set, complete next if required
+		if next == nil {
+			next = newWAGKeySlot(otherSlotID(current.id))
+		}
+	case next != nil:
+		// next is set but not current. swap them and initialize next with an empty slot.
+		current, next = next, newWAGKeySlot(otherSlotID(next.id))
+	default:
+		// neither are set. initialize them with empty slots.
+		current = newWAGKeySlot("A")
+		next = newWAGKeySlot("B")
+	}
+
+	return current, next, nil
+}
+
 // filterInvalidEntries takes in a set of journal entries, and removes entries that represent signing keys
 // that do not appear in the bundle from the datastore. This prevents SPIRE from entering strange
 // and inconsistent states as a result of key mismatch following things like database restore,
@@ -333,14 +411,14 @@ func (s *SlotLoader) getWITKeysSlots(ctx context.Context, entries []*journal.WIT
 // If we find such a discrepancy, removing the entry from the journal prior to beginning signing
 // operations prevents us from using a signing key that consumers may not be able to validate.
 // Instead, we'll rotate into a new one.
-func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, []*journal.X509CAEntry, []*journal.WITKeyEntry, error) {
+func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, []*journal.X509CAEntry, []*journal.WITKeyEntry, []*journal.WAGKeyEntry, error) {
 	bundle, err := s.fetchOptionalBundle(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	if bundle == nil {
-		return entries.JwtKeys, entries.X509CAs, entries.WitKeys, nil
+		return entries.JwtKeys, entries.X509CAs, entries.WitKeys, entries.WagKeys, nil
 	}
 
 	filteredEntriesJwtKeys := []*journal.JWTKeyEntry{}
@@ -359,10 +437,18 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 		}
 	}
 
+	filteredEntriesWagKeys := []*journal.WAGKeyEntry{}
+	for _, entry := range entries.GetWagKeys() {
+		if containsJwkSigningKeyID(bundle.WagSigningKeys, entry.Kid) {
+			filteredEntriesWagKeys = append(filteredEntriesWagKeys, entry)
+			continue
+		}
+	}
+
 	// If we have an upstream authority then we're not recovering a root CA, so we do
 	// not expect to find our CA certificate in the bundle. Simply proceed.
 	if s.UpstreamClient != nil {
-		return filteredEntriesJwtKeys, entries.X509CAs, filteredEntriesWitKeys, nil
+		return filteredEntriesJwtKeys, entries.X509CAs, filteredEntriesWitKeys, filteredEntriesWagKeys, nil
 	}
 
 	filteredEntriesX509CAs := []*journal.X509CAEntry{}
@@ -374,7 +460,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 		}
 	}
 
-	return filteredEntriesJwtKeys, filteredEntriesX509CAs, filteredEntriesWitKeys, nil
+	return filteredEntriesJwtKeys, filteredEntriesX509CAs, filteredEntriesWitKeys, filteredEntriesWagKeys, nil
 }
 
 func (s *SlotLoader) fetchOptionalBundle(ctx context.Context) (*common.Bundle, error) {
@@ -653,6 +739,69 @@ func (s *SlotLoader) loadWITKeySlotFromEntry(ctx context.Context, entry *journal
 	}, "", nil
 }
 
+func (s *SlotLoader) tryLoadWAGKeySlotFromEntry(ctx context.Context, entry *journal.WAGKeyEntry) (*wagKeySlot, error) {
+	slot, badReason, err := s.loadWAGKeySlotFromEntry(ctx, entry)
+	if err != nil {
+		s.Log.WithError(err).WithFields(logrus.Fields{
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
+		}).Error("WAG key slot failed to load")
+		return nil, err
+	}
+	if badReason != "" {
+		s.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
+		}).Warn("WAG key slot unusable")
+		return nil, nil
+	}
+	return slot, nil
+}
+
+func (s *SlotLoader) loadWAGKeySlotFromEntry(ctx context.Context, entry *journal.WAGKeyEntry) (*wagKeySlot, string, error) {
+	if entry.SlotId == "" {
+		return nil, "no slot id", nil
+	}
+
+	if entry.GetNotAfter() < time.Now().Unix() {
+		return nil, "slot expired", nil
+	}
+
+	publicKey, err := x509.ParsePKIXPublicKey(entry.PublicKey)
+	if err != nil {
+		return nil, "", err
+	}
+
+	signer, err := s.makeSigner(ctx, wagKeyKmKeyID(entry.SlotId))
+	if err != nil {
+		return nil, "", err
+	}
+
+	switch {
+	case signer == nil:
+		return nil, "no key manager key", nil
+	case !publicKeyEqual(publicKey, signer.Public()):
+		return nil, "public key does not match key manager key", nil
+	}
+
+	return &wagKeySlot{
+		id:       entry.SlotId,
+		issuedAt: time.Unix(entry.IssuedAt, 0),
+		wagKey: &ca.WAGKey{
+			Signer:   signer,
+			NotAfter: time.Unix(entry.NotAfter, 0),
+			Kid:      entry.Kid,
+		},
+		status:      entry.Status,
+		authorityID: entry.AuthorityId,
+		notAfter:    time.Unix(entry.NotAfter, 0),
+	}, "", nil
+}
+
 func (s *SlotLoader) makeSigner(ctx context.Context, keyID string) (crypto.Signer, error) {
 	km := s.Catalog.GetKeyManager()
 
@@ -677,6 +826,10 @@ func jwtKeyKmKeyID(id string) string {
 
 func witKeyKmKeyID(id string) string {
 	return fmt.Sprintf("WIT-Signer-%s", id)
+}
+
+func wagKeyKmKeyID(id string) string {
+	return fmt.Sprintf("WAG-Signer-%s", id)
 }
 
 func containsJwkSigningKeyID(keys []*common.PublicKey, kid string) bool {
@@ -902,5 +1055,64 @@ func (s *witKeySlot) ShouldActivateNext(now time.Time) bool {
 }
 
 func (s *witKeySlot) NotAfter() time.Time {
+	return s.notAfter
+}
+
+type wagKeySlot struct {
+	id          string
+	issuedAt    time.Time
+	wagKey      *ca.WAGKey
+	status      journal.Status
+	authorityID string
+	notAfter    time.Time
+}
+
+func newWAGKeySlot(id string) *wagKeySlot {
+	return &wagKeySlot{
+		id: id,
+	}
+}
+
+func (s *wagKeySlot) KmKeyID() string {
+	return wagKeyKmKeyID(s.id)
+}
+
+func (s *wagKeySlot) Status() journal.Status {
+	return s.status
+}
+
+func (s *wagKeySlot) AuthorityID() string {
+	return s.authorityID
+}
+
+func (s *wagKeySlot) UpstreamAuthorityID() string {
+	return ""
+}
+
+func (s *wagKeySlot) PublicKey() crypto.PublicKey {
+	if s.wagKey == nil {
+		return nil
+	}
+	return s.wagKey.Signer.Public()
+}
+
+func (s *wagKeySlot) IsEmpty() bool {
+	return s.wagKey == nil || s.status == journal.Status_OLD
+}
+
+func (s *wagKeySlot) Reset() {
+	s.wagKey = nil
+	s.status = journal.Status_OLD
+}
+
+func (s *wagKeySlot) ShouldPrepareNext(now time.Time) bool {
+	return s.wagKey == nil || now.After(preparationThreshold(s.issuedAt, s.wagKey.NotAfter))
+}
+
+func (s *wagKeySlot) ShouldActivateNext(now time.Time) bool {
+	return s.wagKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.wagKey.NotAfter))
+}
+
+func (s *wagKeySlot) NotAfter() time.Time {
 	return s.notAfter
 }

@@ -1379,6 +1379,58 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:   "WAGs are disabled by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.DisableWAGs)
+			},
+		},
+		{
+			msg: "enable_wags enables WAGs",
+			input: func(c *Config) {
+				c.Server.Experimental.EnableWAGs = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.DisableWAGs)
+			},
+		},
+		{
+			msg:   "wag_key_type defaults to ECP256 when ca_key_type is unset",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.ECP256, c.WAGKeyType)
+			},
+		},
+		{
+			msg: "wag_key_type defaults to ca_key_type",
+			input: func(c *Config) {
+				c.Server.CAKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.RSA2048, c.WAGKeyType)
+			},
+		},
+		{
+			msg: "wag_key_type overrides ca_key_type",
+			input: func(c *Config) {
+				c.Server.CAKeyType = "rsa-2048"
+				c.Server.Experimental.WAGKeyType = "ec-p384"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.ECP384, c.WAGKeyType)
+			},
+		},
+		{
+			msg:         "invalid wag_key_type returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Experimental.WAGKeyType = "foo"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid default_x509_svid_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {

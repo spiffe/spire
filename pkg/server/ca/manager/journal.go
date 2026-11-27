@@ -217,6 +217,55 @@ func (j *Journal) UpdateWITKeyStatus(ctx context.Context, authorityID string, st
 	return j.save(ctx)
 }
 
+func (j *Journal) AppendWAGKey(ctx context.Context, slotID string, issuedAt time.Time, wagKey *ca.WAGKey) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	pkixBytes, err := x509.MarshalPKIXPublicKey(wagKey.Signer.Public())
+	if err != nil {
+		return err
+	}
+
+	j.entries.WagKeys = append(j.entries.WagKeys, &journal.WAGKeyEntry{
+		SlotId:      slotID,
+		IssuedAt:    issuedAt.Unix(),
+		Kid:         wagKey.Kid,
+		PublicKey:   pkixBytes,
+		NotAfter:    wagKey.NotAfter.Unix(),
+		Status:      journal.Status_PREPARED,
+		AuthorityId: wagKey.Kid,
+	})
+
+	exceeded := len(j.entries.WagKeys) - journalCap
+	if exceeded > 0 {
+		j.entries.WagKeys = slices.Clone(j.entries.WagKeys[exceeded:])
+	}
+
+	return j.save(ctx)
+}
+
+// UpdateWAGKeyStatus updates a stored WAGKey entry to have the given status,
+// updating the CA journal.
+func (j *Journal) UpdateWAGKeyStatus(ctx context.Context, authorityID string, status journal.Status) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	var found bool
+	for _, entry := range slices.Backward(j.entries.WagKeys) {
+		if authorityID == entry.AuthorityId {
+			found = true
+			entry.Status = status
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
+	}
+
+	return j.save(ctx)
+}
+
 func (j *Journal) setEntries(entries *journal.Entries) {
 	j.mu.Lock()
 	defer j.mu.Unlock()

@@ -108,6 +108,9 @@ type Config struct {
 	// WITKeyType is the key type used for WIT signing keys
 	WITKeyType keymanager.KeyType
 
+	// WAGKeyType is the key type used for WAG signing keys
+	WAGKeyType keymanager.KeyType
+
 	// Federation holds the configuration needed to federate with other
 	// trust domains.
 	Federation FederationConfig
@@ -164,6 +167,9 @@ type Config struct {
 
 	// DisableWITSVIDs, if true, WIT-SVID profile is disabled
 	DisableWITSVIDs bool
+
+	// DisableWAGs, if true, Workload Authorization Grant (WAG) support is disabled
+	DisableWAGs bool
 }
 
 type ExperimentalConfig struct {

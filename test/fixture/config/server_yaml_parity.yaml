@@ -75,6 +75,8 @@ server:
     wit_key_type: "ec-p256"
     wit_issuer: "https://wit.example.org"
     default_wit_svid_ttl: "5m"
+    enable_wags: true
+    wag_key_type: "ec-p384"
     named_pipe_name: "\\spire-server\\private\\api"
     events_based_cache: true
     require_pq_kem: true

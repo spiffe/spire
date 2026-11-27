@@ -85,6 +85,15 @@ func setupJournalTest(t *testing.T) *journalTest {
 
 		kmKeys["WIT-Signer-C"], err = km.GenerateKey(ctx, "WIT-Signer-C", keymanager.ECP256)
 		require.NoError(t, err)
+
+		kmKeys["WAG-Signer-A"], err = km.GenerateKey(ctx, "WAG-Signer-A", keymanager.ECP256)
+		require.NoError(t, err)
+
+		kmKeys["WAG-Signer-B"], err = km.GenerateKey(ctx, "WAG-Signer-B", keymanager.ECP256)
+		require.NoError(t, err)
+
+		kmKeys["WAG-Signer-C"], err = km.GenerateKey(ctx, "WAG-Signer-C", keymanager.ECP256)
+		require.NoError(t, err)
 	}
 
 	return &journalTest{
@@ -132,6 +141,13 @@ func TestJournalPersistence(t *testing.T) {
 
 	err = j.AppendWITKey(ctx, "C", now, &ca.WITKey{
 		Signer:   kmKeys["WIT-Signer-C"],
+		Kid:      "kid1",
+		NotAfter: now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	err = j.AppendWAGKey(ctx, "C", now, &ca.WAGKey{
+		Signer:   kmKeys["WAG-Signer-C"],
 		Kid:      "kid1",
 		NotAfter: now.Add(time.Hour),
 	})
@@ -216,6 +232,18 @@ func TestAppendSetPreparedStatus(t *testing.T) {
 	lastWITKey := testJournal.entries.WitKeys[0]
 	require.Equal(t, "C", lastWITKey.SlotId)
 	require.Equal(t, journal.Status_PREPARED, lastWITKey.Status)
+
+	err = testJournal.AppendWAGKey(ctx, "C", now, &ca.WAGKey{
+		Signer:   kmKeys["WAG-Signer-C"],
+		Kid:      "KID",
+		NotAfter: now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, testJournal.entries.WagKeys, 1)
+	lastWAGKey := testJournal.entries.WagKeys[0]
+	require.Equal(t, "C", lastWAGKey.SlotId)
+	require.Equal(t, journal.Status_PREPARED, lastWAGKey.Status)
 }
 
 func TestAppendKeepsEntriesOnSaveFailure(t *testing.T) {
@@ -250,6 +278,14 @@ func TestAppendKeepsEntriesOnSaveFailure(t *testing.T) {
 	})
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
 
+	test.ds.SetNextError(errors.New("ds error"))
+	err = testJournal.AppendWAGKey(ctx, "C", now, &ca.WAGKey{
+		Signer:   kmKeys["WAG-Signer-C"],
+		Kid:      "kid1",
+		NotAfter: now.Add(time.Hour),
+	})
+	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
+
 	// Journal save failures are non-fatal to callers. Keep the in-memory journal
 	// advanced so a later successful save persists the manager's current state.
 	entries := testJournal.getEntries()
@@ -262,6 +298,9 @@ func TestAppendKeepsEntriesOnSaveFailure(t *testing.T) {
 	require.Len(t, entries.WitKeys, 1)
 	require.Equal(t, "C", entries.WitKeys[0].SlotId)
 	require.Equal(t, journal.Status_PREPARED, entries.WitKeys[0].Status)
+	require.Len(t, entries.WagKeys, 1)
+	require.Equal(t, "C", entries.WagKeys[0].SlotId)
+	require.Equal(t, journal.Status_PREPARED, entries.WagKeys[0].Status)
 }
 
 func TestX509CAOverflow(t *testing.T) {
@@ -511,6 +550,55 @@ func TestUpdateWITKeyStatus(t *testing.T) {
 	require.ErrorContains(t, err, fmt.Sprintf("no journal entry found with authority ID %q", nonExistingAuthorityID))
 }
 
+func TestUpdateWAGKeyStatus(t *testing.T) {
+	test := setupJournalTest(t)
+
+	firstIssuedAt := test.now()
+	secondIssuedAt := firstIssuedAt.Add(time.Minute)
+	thirdIssuedAt := secondIssuedAt.Add(time.Minute)
+
+	testJournal := test.loadJournal(t)
+
+	err := testJournal.AppendWAGKey(ctx, "A", firstIssuedAt, &ca.WAGKey{
+		Signer: kmKeys["WAG-Signer-A"],
+		Kid:    "kid1",
+	})
+	require.NoError(t, err)
+
+	err = testJournal.AppendWAGKey(ctx, "B", secondIssuedAt, &ca.WAGKey{
+		Signer: kmKeys["WAG-Signer-B"],
+		Kid:    "kid2",
+	})
+	require.NoError(t, err)
+
+	err = testJournal.AppendWAGKey(ctx, "C", thirdIssuedAt, &ca.WAGKey{
+		Signer: kmKeys["WAG-Signer-C"],
+		Kid:    "kid3",
+	})
+	require.NoError(t, err)
+
+	keys := testJournal.getEntries().WagKeys
+	require.Len(t, keys, 3)
+	for _, key := range keys {
+		require.Equal(t, journal.Status_PREPARED, key.Status)
+	}
+
+	err = testJournal.UpdateWAGKeyStatus(ctx, "kid2", journal.Status_ACTIVE)
+	require.NoError(t, err)
+
+	for _, key := range testJournal.getEntries().WagKeys {
+		expectedStatus := journal.Status_PREPARED
+		if key.SlotId == "B" {
+			expectedStatus = journal.Status_ACTIVE
+		}
+
+		require.Equal(t, expectedStatus, key.Status)
+	}
+
+	err = testJournal.UpdateWAGKeyStatus(ctx, nonExistingAuthorityID, journal.Status_OLD)
+	require.ErrorContains(t, err, fmt.Sprintf("no journal entry found with authority ID %q", nonExistingAuthorityID))
+}
+
 func TestUpdateWITKeyStatusKeepsStatusOnSaveFailure(t *testing.T) {
 	test := setupJournalTest(t)
 	now := test.now()
@@ -536,6 +624,31 @@ func TestUpdateWITKeyStatusKeepsStatusOnSaveFailure(t *testing.T) {
 	require.Equal(t, journal.Status_ACTIVE, entries.WitKeys[0].Status)
 }
 
+func TestUpdateWAGKeyStatusKeepsStatusOnSaveFailure(t *testing.T) {
+	test := setupJournalTest(t)
+	now := test.now()
+
+	testJournal := test.loadJournal(t)
+	testJournal.activeX509AuthorityID = getOneX509AuthorityID(ctx, t, test.jc.cat.GetKeyManager())
+
+	err := testJournal.AppendWAGKey(ctx, "A", now, &ca.WAGKey{
+		Signer:   kmKeys["WAG-Signer-A"],
+		Kid:      "kid1",
+		NotAfter: now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	test.ds.SetNextError(errors.New("ds error"))
+	err = testJournal.UpdateWAGKeyStatus(ctx, "kid1", journal.Status_ACTIVE)
+	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
+
+	// Status changes remain in memory after persistence errors because callers
+	// log the error and continue using the updated key.
+	entries := testJournal.getEntries()
+	require.Len(t, entries.WagKeys, 1)
+	require.Equal(t, journal.Status_ACTIVE, entries.WagKeys[0].Status)
+}
+
 func TestWITKeyOverflow(t *testing.T) {
 	test := setupJournalTest(t)
 
@@ -556,6 +669,29 @@ func TestWITKeyOverflow(t *testing.T) {
 	entries := journal.getEntries()
 	require.Len(t, entries.WitKeys, journalCap, "WIT key entries exceeds cap")
 	lastEntry := entries.WitKeys[len(entries.WitKeys)-1]
+	require.Equal(t, now, time.Unix(lastEntry.IssuedAt, 0).UTC())
+}
+
+func TestWAGKeyOverflow(t *testing.T) {
+	test := setupJournalTest(t)
+
+	now := test.now()
+
+	journal := test.loadJournal(t)
+
+	for range journalCap + 1 {
+		now = now.Add(time.Minute)
+		err := journal.AppendWAGKey(ctx, "B", now, &ca.WAGKey{
+			Signer:   kmKeys["WAG-Signer-B"],
+			Kid:      "KID",
+			NotAfter: now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
+	entries := journal.getEntries()
+	require.Len(t, entries.WagKeys, journalCap, "WAG key entries exceeds cap")
+	lastEntry := entries.WagKeys[len(entries.WagKeys)-1]
 	require.Equal(t, now, time.Unix(lastEntry.IssuedAt, 0).UTC())
 }
 

@@ -155,6 +155,18 @@ type WITKey struct {
 	NotAfter time.Time
 }
 
+// WAGKey is a signing key for Workload Authorization Grants (WAGs).
+type WAGKey struct {
+	// The signer used to sign keys
+	Signer crypto.Signer
+
+	// Kid is the WAG key ID (i.e. "kid" header)
+	Kid string
+
+	// NotAfter is the expiration time of the WAG key.
+	NotAfter time.Time
+}
+
 type Config struct {
 	Log             logrus.FieldLogger
 	Clock           clock.Clock
@@ -165,6 +177,7 @@ type Config struct {
 	HealthChecker   health.Checker
 	DisableJWTSVIDs bool
 	DisableWITSVIDs bool
+	DisableWAGs     bool
 }
 
 type CA struct {
@@ -175,6 +188,7 @@ type CA struct {
 	x509CAChain          []*x509.Certificate
 	jwtKey               *JWTKey
 	witKey               *WITKey
+	wagKey               *WAGKey
 	taintedAuthoritiesCh chan []*x509.Certificate
 }
 
@@ -240,6 +254,18 @@ func (ca *CA) SetWITKey(witKey *WITKey) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 	ca.witKey = witKey
+}
+
+func (ca *CA) WAGKey() *WAGKey {
+	ca.mu.RLock()
+	defer ca.mu.RUnlock()
+	return ca.wagKey
+}
+
+func (ca *CA) SetWAGKey(wagKey *WAGKey) {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+	ca.wagKey = wagKey
 }
 
 func (ca *CA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
@@ -483,6 +509,10 @@ func (ca *CA) IsJWTSVIDsDisabled() bool {
 
 func (ca *CA) IsWITSVIDsDisabled() bool {
 	return ca.c.DisableWITSVIDs
+}
+
+func (ca *CA) IsWAGsDisabled() bool {
+	return ca.c.DisableWAGs
 }
 
 func (ca *CA) signWITSVID(witKey *WITKey, claims map[string]any) (string, error) {

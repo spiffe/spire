@@ -491,6 +491,27 @@ func (s *Suite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
 
+	// update with mask: WagSigningKeys
+	bundle.WagSigningKeys = []*common.PublicKey{{Kid: "wag-key-1"}}
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		WagSigningKeys: true,
+	})
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, updatedBundle)
+
+	// update with a mask that excludes WagSigningKeys keeps them
+	withoutWAGKeys := proto.Clone(bundle).(*common.Bundle)
+	withoutWAGKeys.WagSigningKeys = nil
+	updatedBundle, err = s.ds.UpdateBundle(ctx, withoutWAGKeys, &common.BundleMask{
+		JwtSigningKeys: true,
+	})
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, updatedBundle)
+
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+
 	// update without mask
 	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle2, nil)
 	s.Require().NoError(err)

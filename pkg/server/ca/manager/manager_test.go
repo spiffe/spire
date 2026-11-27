@@ -158,6 +158,39 @@ func TestGetCurrentWITKeySlot(t *testing.T) {
 	})
 }
 
+func TestGetCurrentWAGKeySlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initSelfSignedManager()
+	require.False(t, test.m.IsUpstreamAuthority())
+
+	t.Run("no authority created", func(t *testing.T) {
+		currentSlot := test.m.GetCurrentWAGKeySlot()
+
+		slot := currentSlot.(*wagKeySlot)
+
+		require.True(t, slot.IsEmpty())
+		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
+	})
+
+	t.Run("slot returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
+		require.NoError(t, test.m.PrepareWAGKey(ctx))
+
+		currentSlot := test.m.GetCurrentWAGKeySlot()
+		slot := currentSlot.(*wagKeySlot)
+		require.NotNil(t, slot.wagKey)
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
+	})
+}
+
 func TestGetNextWITKeySlot(t *testing.T) {
 	ctx := context.Background()
 
@@ -183,6 +216,39 @@ func TestGetNextWITKeySlot(t *testing.T) {
 		nextSlot := test.m.GetNextWITKeySlot()
 		slot := nextSlot.(*witKeySlot)
 		require.NotNil(t, slot.witKey)
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
+	})
+}
+
+func TestGetNextWAGKeySlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initAndActivateSelfSignedManager(ctx)
+	require.NoError(t, test.m.PrepareWAGKey(ctx))
+	test.m.ActivateWAGKey(ctx)
+
+	t.Run("no next created", func(t *testing.T) {
+		nextSlot := test.m.GetNextWAGKeySlot()
+		slot := nextSlot.(*wagKeySlot)
+
+		require.Nil(t, slot.wagKey)
+		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
+	})
+
+	t.Run("next returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
+		require.NoError(t, test.m.PrepareWAGKey(ctx))
+
+		nextSlot := test.m.GetNextWAGKeySlot()
+		slot := nextSlot.(*wagKeySlot)
+		require.NotNil(t, slot.wagKey)
 		require.NotEmpty(t, slot.authorityID)
 		require.Equal(t, expectIssuedAt, slot.issuedAt)
 		require.Equal(t, expectNotAfter, slot.notAfter)
@@ -1369,6 +1435,75 @@ func TestWITKeyRotation(t *testing.T) {
 	require.Equal(t, journal.Status_OLD, test.nextWITKeyStatus())
 }
 
+func TestWAGKeyRotation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	test := setupTest(t)
+
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(t)
+	test.setNotifier(notifier)
+	test.initAndActivateSelfSignedManager(ctx)
+	require.NoError(t, test.m.PrepareWAGKey(ctx))
+	test.m.ActivateWAGKey(ctx)
+
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	test.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go test.m.ProcessBundleUpdates(ctx)
+
+	// after initialization, we should have a current WAGKey but no next.
+	first := test.currentWAGKey()
+	require.Equal(t, journal.Status_ACTIVE, test.currentWAGKeyStatus())
+	assert.Nil(t, test.nextWAGKey(), "second WAGKey should not be prepared yet")
+	require.Equal(t, journal.Status_UNKNOWN, test.nextWAGKeyStatus())
+	test.requireBundleWAGKeys(ctx, t, first)
+
+	// prepare next. the current WAGKey should stay
+	// the same but the next WAGKey should have been prepared and added to
+	// the trust bundle.
+	require.NoError(t, test.m.PrepareWAGKey(ctx))
+	test.requireWAGKeyEqual(t, first, test.currentWAGKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWAGKeyStatus())
+	second := test.nextWAGKey()
+	require.Equal(t, journal.Status_PREPARED, test.nextWAGKeyStatus())
+	assert.NotNil(t, second, "second WAGKey should have been prepared")
+	test.requireBundleWAGKeys(ctx, t, first, second)
+
+	// we should now have a bundle update notification due to the preparation
+	test.waitForBundleUpdatedNotificationWithoutWAGKeys(ctx, notifyCh)
+
+	// rotate, "next" should become "current" and
+	// "next" should be reset.
+	test.m.RotateWAGKey(ctx)
+	test.requireWAGKeyEqual(t, second, test.currentWAGKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWAGKeyStatus())
+	assert.Nil(t, test.nextWAGKey())
+	require.Equal(t, journal.Status_OLD, test.nextWAGKeyStatus())
+
+	// Prepare next, the current WAGKey should stay
+	// the same but the next WAGKey should have been prepared and added to
+	// the trust bundle.
+	require.NoError(t, test.m.PrepareWAGKey(ctx))
+	test.requireWAGKeyEqual(t, second, test.currentWAGKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWAGKeyStatus())
+	third := test.nextWAGKey()
+	assert.NotNil(t, second, "third WAGKey should have been prepared")
+	require.Equal(t, journal.Status_PREPARED, test.nextWAGKeyStatus())
+	test.requireBundleWAGKeys(ctx, t, first, second, third)
+
+	// we should now have a bundle update notification due to the preparation
+	test.waitForBundleUpdatedNotificationWithoutWAGKeys(ctx, notifyCh)
+
+	// rotate again. "next" should become "current" and
+	// "next" should be reset.
+	test.m.RotateWAGKey(ctx)
+	test.requireWAGKeyEqual(t, third, test.currentWAGKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWAGKeyStatus())
+	assert.Nil(t, test.nextWAGKey())
+	require.Equal(t, journal.Status_OLD, test.nextWAGKeyStatus())
+}
+
 func TestPruneBundle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -1673,6 +1808,67 @@ func TestDisableWITSVIDs(t *testing.T) {
 	require.True(t, slot.IsEmpty())
 }
 
+func TestDisableWAGs(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("enabled by default", func(t *testing.T) {
+		test := setupTest(t)
+		manager, err := NewManager(ctx, test.selfSignedConfig())
+		require.NoError(t, err)
+		assert.False(t, manager.IsWAGsDisabled())
+	})
+
+	t.Run("disabled does not create keys", func(t *testing.T) {
+		test := setupTest(t)
+		config := test.selfSignedConfig()
+		config.DisableWAGs = true
+
+		manager, err := NewManager(ctx, config)
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		assert.True(t, manager.IsWAGsDisabled())
+
+		require.NoError(t, manager.PrepareX509CA(ctx))
+		manager.ActivateX509CA(ctx)
+
+		require.NoError(t, manager.PrepareWAGKey(ctx))
+		manager.ActivateWAGKey(ctx)
+		require.True(t, manager.GetCurrentWAGKeySlot().IsEmpty())
+
+		manager.RotateWAGKey(ctx)
+		require.True(t, manager.GetCurrentWAGKeySlot().IsEmpty())
+		require.True(t, manager.GetNextWAGKeySlot().IsEmpty())
+
+		// No key manager keys are generated and nothing is published
+		km := test.cat.GetKeyManager()
+		for _, id := range []string{"A", "B"} {
+			_, err := km.GetKey(ctx, wagKeyKmKeyID(id))
+			require.Equal(t, codes.NotFound, status.Code(err))
+		}
+		require.Empty(t, test.fetchBundle(ctx).WagSigningKeys)
+		require.Nil(t, test.ca.WAGKey())
+	})
+
+	t.Run("disabled does not activate journaled key on startup", func(t *testing.T) {
+		test := setupTest(t)
+		test.initAndActivateSelfSignedManager(ctx)
+		require.NoError(t, test.m.PrepareWAGKey(ctx))
+		test.m.ActivateWAGKey(ctx)
+		require.NotNil(t, test.ca.WAGKey())
+
+		// Restart with WAGs disabled
+		test.ca.SetWAGKey(nil)
+		config := test.selfSignedConfig()
+		config.DisableWAGs = true
+		manager, err := NewManager(ctx, config)
+		require.NoError(t, err)
+
+		// The journaled key is loaded but not activated
+		require.False(t, manager.GetCurrentWAGKeySlot().IsEmpty())
+		require.Nil(t, test.ca.WAGKey())
+	})
+}
+
 func TestAlternateKeyTypes(t *testing.T) {
 	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
 		publicKey, ok := signer.Public().(*rsa.PublicKey)
@@ -1863,6 +2059,12 @@ type witKeyInfo struct {
 	NotAfter time.Time
 }
 
+type wagKeyInfo struct {
+	Signer   signerInfo
+	Kid      string
+	NotAfter time.Time
+}
+
 type signerInfo struct {
 	KeyID     string
 	PublicKey []byte
@@ -1994,6 +2196,7 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 		X509CAKeyType: x509CAKeyType,
 		JWTKeyType:    jwtKeyType,
 		WITKeyType:    witKeyType,
+		WAGKeyType:    keymanager.ECP256,
 		Metrics:       m.metrics,
 		Log:           m.log,
 		Clock:         m.clock,
@@ -2012,6 +2215,10 @@ func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTK
 
 func (m *managerTest) requireWITKeyEqual(t *testing.T, expected, actual *ca.WITKey, msgAndArgs ...any) {
 	require.Equal(t, m.getWITKeyInfo(expected), m.getWITKeyInfo(actual), msgAndArgs...)
+}
+
+func (m *managerTest) requireWAGKeyEqual(t *testing.T, expected, actual *ca.WAGKey, msgAndArgs ...any) {
+	require.Equal(t, m.getWAGKeyInfo(expected), m.getWAGKeyInfo(actual), msgAndArgs...)
 }
 
 func (m *managerTest) getX509CAInfo(x509CA *ca.X509CA) x509CAInfo {
@@ -2044,6 +2251,17 @@ func (m *managerTest) getWITKeyInfo(witKey *ca.WITKey) witKeyInfo {
 		Signer:   m.getSignerInfo(witKey.Signer),
 		Kid:      witKey.Kid,
 		NotAfter: witKey.NotAfter,
+	}
+}
+
+func (m *managerTest) getWAGKeyInfo(wagKey *ca.WAGKey) wagKeyInfo {
+	if wagKey == nil {
+		return wagKeyInfo{}
+	}
+	return wagKeyInfo{
+		Signer:   m.getSignerInfo(wagKey.Signer),
+		Kid:      wagKey.Kid,
+		NotAfter: wagKey.NotAfter,
 	}
 }
 
@@ -2116,6 +2334,20 @@ func (m *managerTest) requireBundleWITKeys(ctx context.Context, t *testing.T, wi
 	})
 }
 
+func (m *managerTest) requireBundleWAGKeys(ctx context.Context, t *testing.T, wagKeys ...*ca.WAGKey) {
+	expected := &common.Bundle{}
+	for _, wagKey := range wagKeys {
+		publicKey, err := publicKeyFromWAGKey(wagKey)
+		require.NoError(m.t, err)
+		expected.WagSigningKeys = append(expected.WagSigningKeys, publicKey)
+	}
+
+	bundle := m.fetchBundle(ctx)
+	spiretest.RequireProtoEqual(t, expected, &common.Bundle{
+		WagSigningKeys: bundle.WagSigningKeys,
+	})
+}
+
 func (m *managerTest) createBundle(ctx context.Context) *common.Bundle {
 	bundle, err := m.ds.CreateBundle(ctx, &common.Bundle{
 		TrustDomainId: testTrustDomain.IDString(),
@@ -2159,8 +2391,17 @@ func (m *managerTest) currentWITKey() *ca.WITKey {
 	return m.m.currentWITKey.witKey
 }
 
+func (m *managerTest) currentWAGKey() *ca.WAGKey {
+	m.requireWAGKeyEqual(m.t, m.m.currentWAGKey.wagKey, m.ca.WAGKey(), "current WAGKey is not active")
+	return m.m.currentWAGKey.wagKey
+}
+
 func (m *managerTest) currentWITKeyStatus() journal.Status {
 	return m.m.currentWITKey.status
+}
+
+func (m *managerTest) currentWAGKeyStatus() journal.Status {
+	return m.m.currentWAGKey.status
 }
 
 func (m *managerTest) nextX509CA() *ca.X509CA {
@@ -2183,8 +2424,16 @@ func (m *managerTest) nextWITKey() *ca.WITKey {
 	return m.m.nextWITKey.witKey
 }
 
+func (m *managerTest) nextWAGKey() *ca.WAGKey {
+	return m.m.nextWAGKey.wagKey
+}
+
 func (m *managerTest) nextWITKeyStatus() journal.Status {
 	return m.m.nextWITKey.status
+}
+
+func (m *managerTest) nextWAGKeyStatus() journal.Status {
+	return m.m.nextWAGKey.status
 }
 
 func (m *managerTest) setTimeAndPrune(t time.Time) {
@@ -2209,6 +2458,20 @@ func (m *managerTest) waitForBundleUpdatedNotification(ctx context.Context, ch <
 		assert.FailNow(m.t, "timed out waiting for bundle update notification")
 	case actual := <-ch:
 		expected := m.fetchBundle(ctx)
+		spiretest.RequireProtoEqual(m.t, expected, actual)
+	}
+}
+
+// waitForBundleUpdatedNotificationWithoutWAGKeys waits for a bundle update
+// notification and asserts that WAG keys are not propagated to notifiers.
+func (m *managerTest) waitForBundleUpdatedNotificationWithoutWAGKeys(ctx context.Context, ch <-chan *common.Bundle) {
+	select {
+	case <-ctx.Done():
+		assert.FailNow(m.t, "timed out waiting for bundle update notification")
+	case actual := <-ch:
+		expected := m.fetchBundle(ctx)
+		require.NotEmpty(m.t, expected.WagSigningKeys)
+		expected.WagSigningKeys = nil
 		spiretest.RequireProtoEqual(m.t, expected, actual)
 	}
 }
@@ -2243,6 +2506,7 @@ type fakeCA struct {
 	x509CA *ca.X509CA
 	jwtKey *ca.JWTKey
 	witKey *ca.WITKey
+	wagKey *ca.WAGKey
 
 	taintedAuthoritiesCh chan []*x509.Certificate
 }
@@ -2281,6 +2545,18 @@ func (s *fakeCA) SetWITKey(witKey *ca.WITKey) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.witKey = witKey
+}
+
+func (s *fakeCA) WAGKey() *ca.WAGKey {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.wagKey
+}
+
+func (s *fakeCA) SetWAGKey(wagKey *ca.WAGKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wagKey = wagKey
 }
 
 func (s *fakeCA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
