@@ -1904,7 +1904,12 @@ func TestSurvivesCARotation(t *testing.T) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
 		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
-			h.rotateCA()
+			// Rotate the CA only once, after the agent fetched the initial
+			// bundle, so the server ends up with a stable set of two roots
+			// no matter how many times the agent renews its SVIDs.
+			if count == 1 {
+				h.rotateCA()
+			}
 			return makeBatchNewX509SVIDEntries("resp1", "resp2")
 		},
 		clk: clk,
@@ -1917,6 +1922,10 @@ func TestSurvivesCARotation(t *testing.T) {
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
+	// Give the agent its own copy of the bundle. Sharing the mock server
+	// bundle would let the agent observe the rotated CA without syncing.
+	agentBundle := api.bundle.Clone()
+
 	ttl := time.Duration(ttlSeconds) * time.Second
 	syncInterval := ttl / 2
 	c := &Config{
@@ -1926,7 +1935,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		Log:              testLogger,
 		TrustDomain:      trustDomain,
 		Storage:          openStorage(t, dir),
-		Bundle:           api.bundle,
+		Bundle:           agentBundle,
 		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     syncInterval,
@@ -1948,10 +1957,21 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	defer initializeAndRunManager(t, m)()
 
-	// Second FetchX509 request will create a new CA
-	clk.Add(syncInterval)
-	newCAUpdate := <-updates
-	newRoots := newCAUpdate.Bundle.X509Authorities()
+	// The first SVID request made the server rotate its CA. The agent learns
+	// about the new root on a later sync. The sync timer is armed by another
+	// goroutine and has jitter, so keep advancing the clock until an update
+	// with a changed bundle shows up.
+	var newRoots []*x509.Certificate
+	require.Eventually(t, func() bool {
+		clk.Add(syncInterval)
+		select {
+		case update := <-updates:
+			newRoots = update.Bundle.X509Authorities()
+			return len(newRoots) > 1
+		default:
+			return false
+		}
+	}, time.Minute, 10*time.Millisecond)
 	require.Contains(t, newRoots, initialRoot)
 	require.Len(t, newRoots, 2)
 }
