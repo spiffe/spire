@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gorilla/handlers"
@@ -169,9 +170,11 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwks.Keys = h.enrichJwksKeys(jwks.Keys)
+	// The source returns the same key set to every caller, so enrich a copy
+	// of the keys rather than writing to the shared set.
+	keys := h.enrichJwksKeys(slices.Clone(jwks.Keys))
 
-	jwksBytes, err := json.MarshalIndent(jwks, "", "  ")
+	jwksBytes, err := json.MarshalIndent(jose.JSONWebKeySet{Keys: keys}, "", "  ")
 	if err != nil {
 		http.Error(w, "failed to marshal JWKS", http.StatusInternalServerError)
 		return
