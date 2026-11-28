@@ -58,19 +58,30 @@ func (m *refreshableRESTMapper) generation() uint64 {
 }
 
 // refreshAfterMiss replaces the mapper with a fresh one unless a refresh was
-// already attempted within the cooldown window.
+// already attempted within the cooldown window. Discovery happens before the
+// lock is taken so lookups are not blocked by an in-flight refresh.
 func (m *refreshableRESTMapper) refreshAfterMiss() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	m.mu.RLock()
 	now := m.now()
 	if !m.lastMissRefresh.IsZero() && now.Sub(m.lastMissRefresh) < m.refreshCooldown {
+		m.mu.RUnlock()
 		return nil
 	}
+	m.mu.RUnlock()
 
 	mapper, err := m.newMapper()
 	if err != nil {
 		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Another lookup may have refreshed the mapper while discovery was in
+	// flight. Keep the mapper that was installed first.
+	now = m.now()
+	if !m.lastMissRefresh.IsZero() && now.Sub(m.lastMissRefresh) < m.refreshCooldown {
+		return nil
 	}
 	m.lastMissRefresh = now
 	m.lastRefresh = now
@@ -80,26 +91,41 @@ func (m *refreshableRESTMapper) refreshAfterMiss() error {
 }
 
 // refreshIfStale replaces the mapper when its discovery information is older
-// than ttl. Replacing the mapper does not perform discovery; the next mapping
-// request does.
+// than ttl. The replacement mapper is built before the lock is taken, so slow
+// or failing discovery does not block lookups. If discovery fails, the current
+// mapper is kept so objects that were previously attested remain resolvable.
 func (m *refreshableRESTMapper) refreshIfStale(ttl time.Duration) error {
 	if ttl <= 0 {
 		return nil
 	}
 
+	m.mu.RLock()
+	now := m.now()
+	if now.Sub(m.lastRefresh) < ttl {
+		m.mu.RUnlock()
+		return nil
+	}
+	generation := m.gen
+	m.mu.RUnlock()
+
+	mapper, err := m.newMapper()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	now := m.now()
-	if now.Sub(m.lastRefresh) < ttl {
+	// Another lookup may have refreshed the mapper while discovery was in
+	// flight. Keep the mapper that was installed first.
+	if m.gen != generation {
 		return nil
 	}
 
-	mapper, err := m.newMapper()
+	// Record the attempt even when discovery fails so an unavailable API
+	// server is retried once per ttl instead of on every lookup. The previous
+	// mapper stays in place, keeping previously resolved objects working.
+	m.lastRefresh = m.now()
 	if err != nil {
 		return err
 	}
-	m.lastRefresh = now
 	m.mapper = mapper
 	m.gen++
 	return nil

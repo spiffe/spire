@@ -51,8 +51,10 @@ for ((i=1; i<=30; i++)); do
     sleep 1
 done
 
+# The refresh interval has a one minute lower bound, so allow up to two
+# refresh windows for the agent to pick up the new version.
 log-info "waiting for the agent to serve the Kustomization from v2..."
-for ((i=1; i<=30; i++)); do
+for ((i=1; i<=150; i++)); do
     if ./bin/kubectl -nspire exec -t cluster-broker -- /brokerclient \
         -ref-type object \
         -plural kustomizations -group kustomize.toolkit.fluxcd.io \

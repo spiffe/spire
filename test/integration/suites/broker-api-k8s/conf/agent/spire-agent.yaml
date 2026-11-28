@@ -189,7 +189,7 @@ data:
             api_server {
               cache {
                 enabled                      = true
-                rest_mapper_refresh_interval = "5s"
+                rest_mapper_refresh_interval = "1m"
               }
             }
 

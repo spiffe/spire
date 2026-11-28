@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -805,6 +806,23 @@ func (s *Suite) TestConfigure() {
 			`,
 			errCode: codes.InvalidArgument,
 			errMsg:  "unable to parse REST mapper refresh interval",
+		},
+		{
+			name:        "API server cache refresh interval below minimum",
+			trustDomain: "example.org",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					api_server {
+						cache {
+							enabled = true
+							rest_mapper_refresh_interval = "30s"
+						}
+					}
+				}
+			`,
+			errCode: codes.InvalidArgument,
+			errMsg:  "REST mapper refresh interval must be at least 1m0s",
 		},
 		{
 			name:        "top-level API server cache is rejected",
@@ -1687,11 +1705,17 @@ func fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(allowed b
 }
 
 type recordingInformerRemover struct {
-	removed []schema.GroupVersionKind
+	removed  []schema.GroupVersionKind
+	failures int
 }
 
 func (r *recordingInformerRemover) RemoveInformer(_ context.Context, obj client.Object) error {
-	r.removed = append(r.removed, obj.GetObjectKind().GroupVersionKind())
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	r.removed = append(r.removed, gvk)
+	if r.failures > 0 {
+		r.failures--
+		return errors.New("informer removal failed")
+	}
 	return nil
 }
 
@@ -2885,25 +2909,63 @@ func (s *Suite) TestTransitionKubeInformer() {
 	p := s.newPlugin()
 	cache := &recordingInformerRemover{}
 	p.kubeCache = cache
-	p.kubeInformerGVKs = make(map[schema.GroupResource]kubeInformerMapping)
+	p.kubeInformers = make(map[schema.GroupResource]*kubeInformerState)
 
 	gr := schema.GroupResource{Group: "example.org", Resource: "widgets"}
 	oldGVK := schema.GroupVersionKind{Group: gr.Group, Version: "v1beta1", Kind: "Widget"}
 	newGVK := schema.GroupVersionKind{Group: gr.Group, Version: "v1", Kind: "Widget"}
 
-	p.transitionKubeInformer(s.T().Context(), gr, oldGVK, 1)
+	state := p.kubeInformerState(gr)
+	s.Require().NotNil(state)
+
+	state.mu.Lock()
+	s.Require().True(p.transitionKubeInformer(s.T().Context(), state, oldGVK, 1))
+	state.mu.Unlock()
 	s.Require().Empty(cache.removed)
 
-	p.transitionKubeInformer(s.T().Context(), gr, oldGVK, 1)
+	state.mu.Lock()
+	s.Require().True(p.transitionKubeInformer(s.T().Context(), state, oldGVK, 1))
+	state.mu.Unlock()
 	s.Require().Empty(cache.removed)
 
-	p.transitionKubeInformer(s.T().Context(), gr, newGVK, 2)
+	state.mu.Lock()
+	s.Require().True(p.transitionKubeInformer(s.T().Context(), state, newGVK, 2))
+	state.mu.Unlock()
 	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
 
 	// A request that started before the mapper refresh must not move the
 	// informer back to the previous version.
-	p.transitionKubeInformer(s.T().Context(), gr, oldGVK, 1)
+	state.mu.Lock()
+	s.Require().False(p.transitionKubeInformer(s.T().Context(), state, oldGVK, 1))
+	state.mu.Unlock()
 	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
+	s.Require().Equal(uint64(2), state.generation)
+	s.Require().Contains(state.gvks, newGVK)
+}
+
+func (s *Suite) TestTransitionKubeInformerRetriesRemoval() {
+	p := s.newPlugin()
+	cache := &recordingInformerRemover{failures: 1}
+	p.kubeCache = cache
+	p.kubeInformers = make(map[schema.GroupResource]*kubeInformerState)
+
+	gr := schema.GroupResource{Group: "example.org", Resource: "widgets"}
+	oldGVK := schema.GroupVersionKind{Group: gr.Group, Version: "v1beta1", Kind: "Widget"}
+	newGVK := schema.GroupVersionKind{Group: gr.Group, Version: "v1", Kind: "Widget"}
+
+	state := p.kubeInformerState(gr)
+	state.mu.Lock()
+	p.transitionKubeInformer(s.T().Context(), state, oldGVK, 1)
+	s.Require().True(p.transitionKubeInformer(s.T().Context(), state, newGVK, 2))
+	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
+	s.Require().Contains(state.gvks, oldGVK, "failed removal should be retried")
+	state.mu.Unlock()
+
+	state.mu.Lock()
+	s.Require().True(p.transitionKubeInformer(s.T().Context(), state, newGVK, 2))
+	state.mu.Unlock()
+	s.Require().Equal([]schema.GroupVersionKind{oldGVK, oldGVK}, cache.removed)
+	s.Require().NotContains(state.gvks, oldGVK)
 }
 
 func (s *Suite) TestAttestByObjectReferenceRefreshesCachedVersion() {
@@ -2948,7 +3010,7 @@ func (s *Suite) TestAttestByObjectReferenceRefreshesCachedVersion() {
 
 	cache := &recordingInformerRemover{}
 	p.kubeCache = cache
-	p.kubeInformerGVKs = make(map[schema.GroupResource]kubeInformerMapping)
+	p.kubeInformers = make(map[schema.GroupResource]*kubeInformerState)
 
 	ref := &broker.KubernetesObjectReference{
 		Type: &broker.KubernetesObjectType{
@@ -2972,6 +3034,87 @@ func (s *Suite) TestAttestByObjectReferenceRefreshesCachedVersion() {
 	s.Require().Equal(1, refreshes)
 	s.Require().Contains(result.Response.SelectorValues, "version:v1")
 	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
+}
+
+func (s *Suite) TestAttestByObjectReferenceRetriesAfterConcurrentMappingRefresh() {
+	s.startInsecureKubelet()
+
+	group := "example.org"
+	oldGVK := schema.GroupVersionKind{Group: group, Version: "v1beta1", Kind: "Widget"}
+	newGVK := schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Widget"}
+
+	now := time.Unix(0, 0)
+	mapper := newRefreshableRESTMapper(testRESTMapperFor(oldGVK), func() (meta.RESTMapper, error) {
+		return testRESTMapperFor(newGVK), nil
+	})
+	mapper.now = func() time.Time { return now }
+	mapper.lastRefresh = now
+	mapper.refreshCooldown = 0
+
+	oldObj := &metav1.PartialObjectMetadata{
+		Name:      "widget-a",
+		Namespace: "default",
+		UID:       "widget-uid",
+	}
+	oldObj.SetGroupVersionKind(oldGVK)
+	newObj := oldObj.DeepCopy()
+	newObj.SetGroupVersionKind(newGVK)
+
+	var gets []schema.GroupVersionKind
+	kubeClient := fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(true, nil, mapper, interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			gvk := obj.GetObjectKind().GroupVersionKind()
+			gets = append(gets, gvk)
+			if gvk == oldGVK {
+				// Simulate another request refreshing the mapper after this
+				// request resolved the old mapping but before it reads the
+				// object.
+				s.Require().NoError(mapper.refreshAfterMiss())
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+	}, oldObj, newObj)
+
+	p := s.loadRawPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		experimental {
+			api_server {
+				cache {
+					enabled = true
+					rest_mapper_refresh_interval = "1m"
+				}
+			}
+		}
+	`, s.kubeletPort()), kubeClient)
+
+	cache := &recordingInformerRemover{}
+	p.kubeCache = cache
+	p.kubeInformers = make(map[schema.GroupResource]*kubeInformerState)
+
+	ref := &broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{
+			Plural: "widgets",
+			Group:  group,
+		},
+		Key: &broker.KubernetesObjectKey{
+			Namespace: "default",
+			Name:      "widget-a",
+		},
+	}
+
+	result, err := p.attestByObjectReference(s.T().Context(), ref)
+	s.Require().NoError(err)
+	s.Require().Contains(result.Response.SelectorValues, "version:v1")
+	s.Require().Equal([]schema.GroupVersionKind{oldGVK, newGVK}, gets, "obsolete lookup should be retried with the new mapping")
+	s.Require().Equal([]schema.GroupVersionKind{oldGVK}, cache.removed)
+
+	state := p.kubeInformerState(schema.GroupResource{Group: group, Resource: "widgets"})
+	s.Require().NotNil(state)
+	s.Require().Equal(uint64(1), state.generation)
+	s.Require().NotContains(state.gvks, oldGVK)
+	s.Require().Contains(state.gvks, newGVK)
 }
 
 func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
