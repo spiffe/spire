@@ -67,7 +67,7 @@ func TestGetSubjectKeyIDs(t *testing.T) {
 		sha256   bool
 		expected []string
 	}{
-		{name: "SHA-1 first by default", sha256: false, expected: []string{sha1ID, sha256ID}},
+		{name: "SHA-256 and SHA-1 by default", sha256: false, expected: []string{sha256ID, sha1ID}},
 		{name: "only SHA-256 if fips140 is enabled", sha256: true, expected: []string{sha256ID}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,10 +80,9 @@ func TestGetSubjectKeyIDs(t *testing.T) {
 			}
 			require.Equal(t, tt.expected, actual)
 
-			// The first one is what GetSubjectKeyID returns.
-			ski, err := GetSubjectKeyID(privateKey.Public())
+			sha256SKI, err := GetSHA256SubjectKeyID(privateKey.Public())
 			require.NoError(t, err)
-			require.Equal(t, skis[0], ski)
+			require.Equal(t, sha256ID, SubjectKeyIDToString(sha256SKI))
 		})
 	}
 }

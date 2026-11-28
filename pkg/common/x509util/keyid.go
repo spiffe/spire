@@ -26,13 +26,24 @@ func GetSubjectKeyID(pubKey any) ([]byte, error) {
 	return sha1SubjectKeyID(keyBytes), nil
 }
 
+// GetSHA256SubjectKeyID calculates a subject key identifier by doing a SHA-256
+// hash over the ASN.1 encoding of the public key, no matter if FIPS 140 mode is
+// enabled or not.
+func GetSHA256SubjectKeyID(pubKey any) ([]byte, error) {
+	keyBytes, err := subjectPublicKeyBytes(pubKey)
+	if err != nil {
+		return nil, err
+	}
+	return sha256SubjectKeyID(keyBytes), nil
+}
+
 // GetSubjectKeyIDs calculates every subject key identifier that a certificate
-// issuer may have derived from the public key: the one GetSubjectKeyID
-// returns first, followed by the one computed with the other hash. Use it to
-// look up an identifier that was taken from a certificate, since RFC 5280
-// leaves the derivation to the issuer and Go switched from SHA-1 to SHA-256
-// when it fills in a missing subject key identifier. In FIPS 140-only mode
-// SHA-1 cannot be used, so only the SHA-256 identifier is returned.
+// issuer may have derived from the public key, SHA-256 first. Use it to look
+// up an identifier that was taken from a certificate or stored by an older
+// version, since RFC 5280 leaves the derivation to the issuer and Go switched
+// from SHA-1 to SHA-256 when it fills in a missing subject key identifier. In
+// FIPS 140-only mode SHA-1 cannot be used, so only the SHA-256 identifier is
+// returned.
 func GetSubjectKeyIDs(pubKey any) ([][]byte, error) {
 	keyBytes, err := subjectPublicKeyBytes(pubKey)
 	if err != nil {
@@ -41,7 +52,7 @@ func GetSubjectKeyIDs(pubKey any) ([][]byte, error) {
 	if x509utilsha256skid {
 		return [][]byte{sha256SubjectKeyID(keyBytes)}, nil
 	}
-	return [][]byte{sha1SubjectKeyID(keyBytes), sha256SubjectKeyID(keyBytes)}, nil
+	return [][]byte{sha256SubjectKeyID(keyBytes), sha1SubjectKeyID(keyBytes)}, nil
 }
 
 // subjectPublicKeyBytes returns the value of the BIT STRING subjectPublicKey

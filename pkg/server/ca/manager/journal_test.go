@@ -366,7 +366,7 @@ func TestUpdateX509CAStatusStoresKeyDerivedAuthorityID(t *testing.T) {
 	authorityID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
 	require.NoError(t, testJournal.UpdateX509CAStatus(ctx, authorityID, journal.Status_ACTIVE))
 
-	subjectKeyID, err := x509util.GetSubjectKeyID(cert.PublicKey)
+	subjectKeyID, err := x509util.GetSHA256SubjectKeyID(cert.PublicKey)
 	require.NoError(t, err)
 	expected := x509util.SubjectKeyIDToString(subjectKeyID)
 	require.NotEqual(t, expected, authorityID)
@@ -393,7 +393,9 @@ func TestUpdateX509CAStatusKeepsStatusOnSaveFailure(t *testing.T) {
 	authorityIDA := x509util.SubjectKeyIDToString(rootCerts["X509-Root-A"].SubjectKeyId)
 	err = testJournal.UpdateX509CAStatus(ctx, authorityIDA, journal.Status_ACTIVE)
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
-	require.Equal(t, authorityIDA, testJournal.activeX509AuthorityID)
+	sha256SKI, err := x509util.GetSHA256SubjectKeyID(rootCerts["X509-Root-A"].PublicKey)
+	require.NoError(t, err)
+	require.Equal(t, x509util.SubjectKeyIDToString(sha256SKI), testJournal.activeX509AuthorityID)
 
 	// Activation proceeds even if journal persistence fails, so the in-memory
 	// journal should still reflect the active authority.
