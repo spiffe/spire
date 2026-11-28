@@ -945,6 +945,47 @@ func TestLRUCacheDisablePrefetchDropsSVIDsWithoutSubscribers(t *testing.T) {
 	}
 }
 
+func TestLRUCacheDisablePrefetchDropsSVIDWithPendingRenewal(t *testing.T) {
+	cache := newTestLRUCache(t)
+	fakeMetrics := fakemetrics.New()
+	cache.metrics = fakeMetrics
+
+	foo := makeRegistrationEntry("FOO", "F")
+	foo.AdditionalAttributes = &common.RegistrationEntry_AdditionalAttributes{
+		DisableX509SvidPrefetch: true,
+	}
+	updateEntries := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}
+	svidNeedsRotation := func(_, _ *common.RegistrationEntry, _ *X509SVID) bool {
+		return true
+	}
+
+	cache.UpdateEntries(updateEntries, nil)
+	sub := cache.NewSubscriber(makeSelectors("F"))
+	cache.UpdateSVIDs(makeX509SVIDs(foo))
+
+	// The SVID is scheduled for renewal while FOO has a subscriber
+	cache.UpdateEntries(updateEntries, svidNeedsRotation)
+	assert.Equal(t, []string{foo.EntryId}, staleEntryIDs(cache.GetStaleEntries()))
+
+	// The subscriber goes away before the SVID is renewed. The SVID is
+	// removed and the pending renewal is dropped with it.
+	sub.Finish()
+	fakeMetrics.Reset()
+	cache.UpdateEntries(updateEntries, svidNeedsRotation)
+	assert.NotContains(t, cache.svids, foo.EntryId)
+	assert.Empty(t, cache.GetStaleEntries())
+	assert.Equal(t, []fakemetrics.MetricItem{
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 0, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
+	}, fakeMetrics.AllMetrics())
+}
+
 func staleEntryIDs(staleEntries []*StaleEntry) []string {
 	ids := make([]string, 0, len(staleEntries))
 	for _, staleEntry := range staleEntries {
@@ -1653,6 +1694,7 @@ func TestMetrics(t *testing.T) {
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 0, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 	}, fakeMetrics.AllMetrics())
 
 	// add SVIDs to cache
@@ -1662,6 +1704,7 @@ func TestMetrics(t *testing.T) {
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 0, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 	}, fakeMetrics.AllMetrics())
 
@@ -1677,15 +1720,18 @@ func TestMetrics(t *testing.T) {
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 0, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 1},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 1},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 1},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 1},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 	}, fakeMetrics.AllMetrics())
 }
 

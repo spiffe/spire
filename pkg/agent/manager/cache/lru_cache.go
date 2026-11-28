@@ -319,6 +319,9 @@ func (c *LRUCache[SVID, Update]) SubscribeToEntryAndBundleUpdates(selectors []*c
 // updated through a call to UpdateSVIDs.
 func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *SVID) bool) {
 	c.mu.Lock()
+	// SVIDs can be removed here without a new one being minted afterwards, so
+	// the gauge cannot rely on UpdateSVIDs to be refreshed.
+	defer func() { agentmetrics.SetSVIDMapSize(c.metrics, c.svidType, c.CountSVIDs()) }()
 	defer func() { agentmetrics.SetEntriesMapSize(c.metrics, c.svidType, c.CountRecords()) }()
 	defer c.mu.Unlock()
 
@@ -536,7 +539,7 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 	// demand when a workload subscribes.
 	for id, svid := range c.svids {
 		if _, ok := outdatedEntries[id]; ok || (checkSVID != nil && checkSVID(nil, c.records[id].entry, svid)) {
-			if _, hasSubs := activeSubsByEntryID[id]; !hasSubs && c.shouldPrefetch != nil && !c.shouldPrefetch(c.records[id].entry) {
+			if _, hasSubs := activeSubsByEntryID[id]; !hasSubs && c.prefetchDisabled(c.records[id].entry) {
 				c.log.WithField(telemetry.Entry, id).Debug("Removing SVID not eligible for prefetch without active subscribers")
 				delete(c.svids, id)
 				delete(c.staleEntries, id)
@@ -725,7 +728,7 @@ func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}
 		if len(c.staleEntries) >= remainderSize {
 			break
 		}
-		if c.shouldPrefetch != nil && !c.shouldPrefetch(record.entry) {
+		if c.prefetchDisabled(record.entry) {
 			continue
 		}
 		if _, svidCached := c.svids[id]; !svidCached {
@@ -736,6 +739,12 @@ func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}
 	}
 
 	return activeSubsByEntryID, lastAccessTimestamps
+}
+
+// prefetchDisabled reports whether SVIDs for the entry are only minted on
+// demand, when a workload subscribes to it.
+func (c *LRUCache[SVID, Update]) prefetchDisabled(entry *common.RegistrationEntry) bool {
+	return c.shouldPrefetch != nil && !c.shouldPrefetch(entry)
 }
 
 func (c *LRUCache[SVID, Update]) countMatchingSubscribers(entry *common.RegistrationEntry, set selectorSet) int {
