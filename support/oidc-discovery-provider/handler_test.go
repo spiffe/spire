@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -1144,6 +1145,86 @@ func TestHandlerResponseHeaders(t *testing.T) {
 			for _, name := range testCase.absentHeader {
 				assert.Empty(t, w.Header().Values(name), "header %q should not be set", name)
 			}
+		})
+	}
+}
+
+func TestHandlerKeysDoesNotModifySourceKeySet(t *testing.T) {
+	log, _ := test.NewNullLogger()
+
+	testCases := []struct {
+		name      string
+		setKeyUse bool
+		body      string
+	}{
+		{
+			name:      "set key use",
+			setKeyUse: true,
+			body: `{
+				"keys": [
+					{
+						"use": "sig",
+						"kty": "EC",
+						"kid": "KEYID",
+						"crv": "P-256",
+						"alg": "ES256",
+						"x": "iSt7S4ih6QLodw9wf-zdPV8bmAlDJBCRRy24_UAZY70",
+						"y": "Gb4gkQCeHj7HCbZzdctcAx9dxoDgC9sudsSG7ZLIWJs"
+					}
+				]
+			}`,
+		},
+		{
+			name:      "default",
+			setKeyUse: false,
+			body: `{
+				"keys": [
+					{
+						"kty": "EC",
+						"kid": "KEYID",
+						"crv": "P-256",
+						"alg": "ES256",
+						"x": "iSt7S4ih6QLodw9wf-zdPV8bmAlDJBCRRy24_UAZY70",
+						"y": "Gb4gkQCeHj7HCbZzdctcAx9dxoDgC9sudsSG7ZLIWJs"
+					}
+				]
+			}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			jwks := &jose.JSONWebKeySet{
+				Keys: []jose.JSONWebKey{
+					{
+						Key:   ec256Pubkey,
+						KeyID: "KEYID",
+					},
+				},
+			}
+			source := new(FakeKeySetSource)
+			source.SetKeySet(jwks, time.Time{}, time.Time{})
+
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, testCase.setKeyUse, nil, nil, "")
+			require.NoError(t, err)
+
+			// The source hands out the same key set on every call, so
+			// concurrent requests must not write to it.
+			var wg sync.WaitGroup
+			for range 4 {
+				wg.Go(func() {
+					r := httptest.NewRequest(http.MethodGet, "https://domain.test/keys", nil)
+					w := httptest.NewRecorder()
+					h.ServeHTTP(w, r)
+					assert.Equal(t, http.StatusOK, w.Code)
+					assert.JSONEq(t, testCase.body, w.Body.String())
+				})
+			}
+			wg.Wait()
+
+			require.Len(t, jwks.Keys, 1)
+			require.Empty(t, jwks.Keys[0].Use)
+			require.Empty(t, jwks.Keys[0].Algorithm)
 		})
 	}
 }
