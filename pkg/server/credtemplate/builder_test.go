@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -33,29 +34,31 @@ import (
 )
 
 var (
-	ctx              = context.Background()
-	now              = time.Now().Add(time.Hour).Truncate(time.Minute)
-	td               = spiffeid.RequireTrustDomainFromString("domain.test")
-	sn               = big.NewInt(99)
-	publicKey        = testkey.MustEC256().Public()
-	publicKeyID, _   = x509util.GetSubjectKeyID(publicKey)
-	parentTTL        = 7 * 24 * time.Hour
-	parentNotAfter   = now.Add(parentTTL)
-	parentKey        = testkey.MustEC256().Public()
-	parentKeyID, _   = x509util.GetSubjectKeyID(parentKey)
-	parentChain      = []*x509.Certificate{{PublicKey: parentKey, SubjectKeyId: parentKeyID, NotAfter: parentNotAfter}}
-	caID             = td.ID()
-	notBefore        = now.Add(-10 * time.Second)
-	x509CANotAfter   = now.Add(credtemplate.DefaultX509CATTL)
-	x509SVIDNotAfter = now.Add(credtemplate.DefaultX509SVIDTTL)
-	jwtSVIDNotAfter  = now.Add(credtemplate.DefaultJWTSVIDTTL)
-	witSVIDNotAfter  = now.Add(credtemplate.DefaultWITSVIDTTL)
-	caKeyUsage       = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
-	svidKeyUsage     = x509.KeyUsageKeyEncipherment | x509.KeyUsageKeyAgreement | x509.KeyUsageDigitalSignature
-	svidExtKeyUsage  = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
-	serverID         = spiffeid.RequireFromPath(td, "/spire/server")
-	agentID          = spiffeid.RequireFromPath(td, "/spire/agent/foo/foo-1")
-	workloadID       = spiffeid.RequireFromPath(td, "/workload")
+	ctx                 = context.Background()
+	now                 = time.Now().Add(time.Hour).Truncate(time.Minute)
+	td                  = spiffeid.RequireTrustDomainFromString("domain.test")
+	sn                  = big.NewInt(99)
+	publicKey           = testkey.MustEC256().Public()
+	publicKeyID, _      = x509util.GetSubjectKeyID(publicKey)
+	mldsaPublicKey      = mustMLDSA65PublicKey()
+	mldsaPublicKeyID, _ = x509util.GetSubjectKeyID(mldsaPublicKey)
+	parentTTL           = 7 * 24 * time.Hour
+	parentNotAfter      = now.Add(parentTTL)
+	parentKey           = testkey.MustEC256().Public()
+	parentKeyID, _      = x509util.GetSubjectKeyID(parentKey)
+	parentChain         = []*x509.Certificate{{PublicKey: parentKey, SubjectKeyId: parentKeyID, NotAfter: parentNotAfter}}
+	caID                = td.ID()
+	notBefore           = now.Add(-10 * time.Second)
+	x509CANotAfter      = now.Add(credtemplate.DefaultX509CATTL)
+	x509SVIDNotAfter    = now.Add(credtemplate.DefaultX509SVIDTTL)
+	jwtSVIDNotAfter     = now.Add(credtemplate.DefaultJWTSVIDTTL)
+	witSVIDNotAfter     = now.Add(credtemplate.DefaultWITSVIDTTL)
+	caKeyUsage          = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+	svidKeyUsage        = x509.KeyUsageKeyEncipherment | x509.KeyUsageKeyAgreement | x509.KeyUsageDigitalSignature
+	svidExtKeyUsage     = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
+	serverID            = spiffeid.RequireFromPath(td, "/spire/server")
+	agentID             = spiffeid.RequireFromPath(td, "/spire/agent/foo/foo-1")
+	workloadID          = spiffeid.RequireFromPath(td, "/workload")
 )
 
 func TestNewBuilderRequiresTrustDomain(t *testing.T) {
@@ -532,6 +535,17 @@ func TestBuildServerX509SVIDTemplate(t *testing.T) {
 			expectErr: "x509: unsupported public key type: <nil>",
 		},
 		{
+			desc: "ML-DSA public key",
+			overrideParams: func(params *credtemplate.ServerX509SVIDParams) {
+				params.PublicKey = mldsaPublicKey
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.PublicKey = mldsaPublicKey
+				expected.SubjectKeyId = mldsaPublicKeyID
+				expected.KeyUsage = x509.KeyUsageDigitalSignature
+			},
+		},
+		{
 			desc: "override X509SVIDTTL",
 			overrideConfig: func(config *credtemplate.Config) {
 				config.X509SVIDTTL = credtemplate.DefaultX509SVIDTTL * 2
@@ -692,6 +706,17 @@ func TestBuildAgentX509SVIDTemplate(t *testing.T) {
 				params.PublicKey = nil
 			},
 			expectErr: "x509: unsupported public key type: <nil>",
+		},
+		{
+			desc: "ML-DSA public key",
+			overrideParams: func(params *credtemplate.AgentX509SVIDParams) {
+				params.PublicKey = mldsaPublicKey
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.PublicKey = mldsaPublicKey
+				expected.SubjectKeyId = mldsaPublicKeyID
+				expected.KeyUsage = x509.KeyUsageDigitalSignature
+			},
 		},
 		{
 			desc: "override X509SVIDTTL",
@@ -866,6 +891,17 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 				params.PublicKey = nil
 			},
 			expectErr: "x509: unsupported public key type: <nil>",
+		},
+		{
+			desc: "ML-DSA public key",
+			overrideParams: func(params *credtemplate.WorkloadX509SVIDParams) {
+				params.PublicKey = mldsaPublicKey
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.PublicKey = mldsaPublicKey
+				expected.SubjectKeyId = mldsaPublicKeyID
+				expected.KeyUsage = x509.KeyUsageDigitalSignature
+			},
 		},
 		{
 			desc: "invalid DNS names",
@@ -1525,4 +1561,12 @@ func loadGrpcPlugin(t *testing.T) credentialcomposer.CredentialComposer {
 	cc := new(credentialcomposer.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("grpcPlugin", server), cc)
 	return cc
+}
+
+func mustMLDSA65PublicKey() crypto.PublicKey {
+	key, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	if err != nil {
+		panic(err)
+	}
+	return key.Public()
 }

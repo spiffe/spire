@@ -3,6 +3,7 @@ package bundle_test
 import (
 	"context"
 	"crypto"
+	"crypto/mldsa"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
@@ -1188,6 +1189,13 @@ func TestPublishJWTAuthority(t *testing.T) {
 		PublicKey: pkixBytes,
 	}
 
+	mldsaPKIXBytes := mldsaPKIX(t)
+	mldsaJWTKey := &types.JWTKey{
+		ExpiresAt: expiresAt,
+		KeyId:     "mldsa",
+		PublicKey: mldsaPKIXBytes,
+	}
+
 	_, expectedJWTErr := x509.ParsePKIXPublicKey([]byte("malformed key"))
 	require.Error(t, expectedJWTErr)
 
@@ -1227,6 +1235,29 @@ func TestPublishJWTAuthority(t *testing.T) {
 						telemetry.Type:                        "audit",
 						telemetry.JWTAuthorityKeyID:           "key1",
 						telemetry.JWTAuthorityPublicKeySHA256: pkixHashed,
+						telemetry.JWTAuthorityExpiresAt:       expiresAtStr,
+					},
+				},
+			},
+		},
+		{
+			name:   "success with ML-DSA key",
+			jwtKey: mldsaJWTKey,
+			fakeExpectKey: &common.PublicKey{
+				PkixBytes: mldsaPKIXBytes,
+				Kid:       "mldsa",
+				NotAfter:  expiresAt,
+			},
+			resultKeys: []*types.JWTKey{mldsaJWTKey},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:                      "success",
+						telemetry.Type:                        "audit",
+						telemetry.JWTAuthorityKeyID:           "mldsa",
+						telemetry.JWTAuthorityPublicKeySHA256: api.HashByte(mldsaPKIXBytes),
 						telemetry.JWTAuthorityExpiresAt:       expiresAtStr,
 					},
 				},
@@ -1424,6 +1455,13 @@ func TestPublishWITAuthority(t *testing.T) {
 		PublicKey: pkixBytes,
 	}
 
+	mldsaPKIXBytes := mldsaPKIX(t)
+	mldsaWITKey := &types.WITKey{
+		ExpiresAt: expiresAt,
+		KeyId:     "mldsa",
+		PublicKey: mldsaPKIXBytes,
+	}
+
 	_, expectedWITErr := x509.ParsePKIXPublicKey([]byte("malformed key"))
 	require.Error(t, expectedWITErr)
 
@@ -1463,6 +1501,29 @@ func TestPublishWITAuthority(t *testing.T) {
 						telemetry.Type:                        "audit",
 						telemetry.WITAuthorityKeyID:           "key1",
 						telemetry.WITAuthorityPublicKeySHA256: pkixHashed,
+						telemetry.WITAuthorityExpiresAt:       expiresAtStr,
+					},
+				},
+			},
+		},
+		{
+			name:   "success with ML-DSA key",
+			witKey: mldsaWITKey,
+			fakeExpectKey: &common.PublicKey{
+				PkixBytes: mldsaPKIXBytes,
+				Kid:       "mldsa",
+				NotAfter:  expiresAt,
+			},
+			resultKeys: []*types.WITKey{mldsaWITKey},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:                      "success",
+						telemetry.Type:                        "audit",
+						telemetry.WITAuthorityKeyID:           "mldsa",
+						telemetry.WITAuthorityPublicKeySHA256: api.HashByte(mldsaPKIXBytes),
 						telemetry.WITAuthorityExpiresAt:       expiresAtStr,
 					},
 				},
@@ -3338,4 +3399,12 @@ func (f *fakeRateLimiter) RateLimit(_ context.Context, count int) error {
 	}
 
 	return f.err
+}
+
+func mldsaPKIX(t *testing.T) []byte {
+	key, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	require.NoError(t, err)
+	pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+	return pkixBytes
 }

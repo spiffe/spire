@@ -46,7 +46,10 @@ func TestHandlerHTTPS(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -215,7 +218,10 @@ func TestHandlerHTTPInsecure(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -329,7 +335,10 @@ func TestHandlerHTTP(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -352,7 +361,10 @@ func TestHandlerHTTP(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -375,7 +387,10 @@ func TestHandlerHTTP(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -502,7 +517,10 @@ func TestHandlerProxied(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -614,7 +632,10 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -637,7 +658,10 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -660,7 +684,10 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -683,7 +710,10 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -706,7 +736,10 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -768,7 +801,10 @@ func TestHandlerJWTIssuerAndJWKSURI(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -829,7 +865,10 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -852,7 +891,10 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -875,7 +917,10 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -898,7 +943,10 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -921,7 +969,10 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -981,7 +1032,10 @@ func TestHandlerPrefix(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -1004,7 +1058,10 @@ func TestHandlerPrefix(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -1027,7 +1084,10 @@ func TestHandlerPrefix(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},
@@ -1050,7 +1110,10 @@ func TestHandlerPrefix(t *testing.T) {
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }`,
 		},

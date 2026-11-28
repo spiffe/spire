@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/mldsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -34,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -1416,6 +1418,95 @@ func TestWITSVIDSyncFailureIsIsolated(t *testing.T) {
 	// WIT-SVID sync reports the error to its independent retry loop.
 	require.Error(t, m.syncWITSVIDs(context.Background()))
 	require.Equal(t, int32(2), api.batchNewWITSVIDCount.Load())
+}
+
+func TestWorkloadSVIDsWithMLDSAKey(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	var witRequests atomic.Int32
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		batchNewWITSVID: func(h *mockAPI, _ int32, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+			witRequests.Add(1)
+			resp := new(svidv1.BatchNewWITSVIDResponse)
+			for _, param := range req.Params {
+				assert.Equal(t, "ML-DSA-65", param.SigningAlgorithm)
+				publicKey, err := x509.ParsePKIXPublicKey(param.PublicKey)
+				if assert.NoError(t, err) {
+					assertMLDSA65PublicKey(t, publicKey)
+				}
+				resp.Results = append(resp.Results, &svidv1.BatchNewWITSVIDResponse_Result{
+					Status: commonapi.OK(),
+					Svid: &types.WITSVID{
+						Token:     fmt.Sprintf("WIT-SVID for %s", param.EntryId),
+						IssuedAt:  h.clk.Now().Unix(),
+						ExpiresAt: h.clk.Now().Add(time.Hour).Unix(),
+					},
+				})
+			}
+			return resp, nil
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	c := newWITTestConfig(t, dir, api, km, clk, true)
+	c.WorkloadKeyType = workloadkey.MLDSA65
+	m := newManager(c)
+	require.NoError(t, m.Initialize(context.Background()))
+	require.Equal(t, 3, m.CountX509SVIDs())
+	require.Equal(t, int32(1), witRequests.Load())
+
+	selectors := cache.Selectors{
+		{Type: "unix", Value: "uid:1111"},
+		{Type: "spiffe_id", Value: joinTokenID.String()},
+	}
+
+	x509Sub, err := m.SubscribeToX509CacheChanges(context.Background(), selectors)
+	require.NoError(t, err)
+	defer x509Sub.Finish()
+
+	util.RunWithTimeout(t, time.Second, func() {
+		u := <-x509Sub.Updates()
+		require.Len(t, u.Identities, 3)
+		for _, identity := range u.Identities {
+			assertMLDSA65PublicKey(t, identity.PrivateKey.Public())
+			require.Len(t, identity.SVID, 1)
+			matches, err := cryptoutil.KeyMatches(identity.PrivateKey, identity.SVID[0].PublicKey)
+			require.NoError(t, err)
+			require.True(t, matches)
+			_, _, err = x509svid.Verify(identity.SVID, u.Bundle, x509svid.WithTime(clk.Now()))
+			require.NoError(t, err)
+		}
+	})
+
+	witSub, err := m.SubscribeToWITCacheChanges(context.Background(), selectors)
+	require.NoError(t, err)
+	defer witSub.Finish()
+
+	util.RunWithTimeout(t, time.Second, func() {
+		u := <-witSub.Updates()
+		require.Len(t, u.Identities, 3)
+		for _, identity := range u.Identities {
+			require.Equal(t, fmt.Sprintf("WIT-SVID for %s", identity.Entry.EntryId), identity.Token)
+			assertMLDSA65PublicKey(t, identity.PrivateKey.Public())
+		}
+	})
+}
+
+func assertMLDSA65PublicKey(t *testing.T, publicKey crypto.PublicKey) {
+	mldsaKey, ok := publicKey.(*mldsa.PublicKey)
+	if assert.True(t, ok, "expected ML-DSA public key, got %T", publicKey) {
+		assert.Equal(t, mldsa.MLDSA65(), mldsaKey.Parameters())
+	}
 }
 
 func newWITTestConfig(t *testing.T, dir string, api *mockAPI, km keymanager.KeyManager, clk clock.Clock, enableWITSVIDs bool) *Config {

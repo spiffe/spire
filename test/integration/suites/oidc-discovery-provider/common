@@ -27,7 +27,7 @@ check-equal-keys() {
 
   JWK_KEY=$(echo ${JWK} | jq -r '.x + .y')
 
-  DER_KEY=$(echo "$BUNDLE_PK" | base64 -d | openssl ec -pubin -inform DER -text -noout | grep -E "[0-9a-fA-F]{2}:" | tr -d '[:space:]' | cut -c4-)
+  DER_KEY=$(echo "$BUNDLE_PK" | base64 -d | openssl ec -pubin -inform DER -text -noout | grep -E "^\s+[0-9a-fA-F]{2}(:|$)" | tr -d '[:space:]' | cut -c4-)
 
   FIRST_HALF=$(echo "$DER_KEY" | cut -c1-$((${#DER_KEY} / 2)) | xxd -r -p | base64)
 

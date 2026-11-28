@@ -1,6 +1,7 @@
 package credvalidator
 
 import (
+	"crypto/mldsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -82,6 +83,9 @@ func (v *Validator) ValidateX509SVID(svid *x509.Certificate, id spiffeid.ID) err
 	}
 	if svid.KeyUsage&^(x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement) > 0 {
 		return errors.New("invalid X509-SVID: only digitalSignature, keyEncipherment, and keyAgreement key usage can be set")
+	}
+	if _, ok := svid.PublicKey.(*mldsa.PublicKey); ok && svid.KeyUsage&(x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement) != 0 {
+		return errors.New("invalid X509-SVID: keyEncipherment and keyAgreement key usage must not be set for ML-DSA keys")
 	}
 
 	if len(svid.ExtKeyUsage) > 0 {

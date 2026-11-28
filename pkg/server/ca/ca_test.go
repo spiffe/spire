@@ -2,6 +2,8 @@ package ca
 
 import (
 	"context"
+	"crypto"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -11,8 +13,13 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	gospiffejwtsvid "github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -20,8 +27,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/credvalidator"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
+	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -657,6 +666,96 @@ func (s *CATestSuite) TestHealthChecks() {
 	}, s.healthChecker.RunChecks())
 }
 
+func (s *CATestSuite) TestSignWithMLDSAKeys() {
+	km := fakeserverkeymanager.New(s.T())
+	caKey, err := km.GenerateKey(ctx, "x509-ca", keymanager.MLDSA65)
+	s.Require().NoError(err)
+	jwtKey, err := km.GenerateKey(ctx, "jwt-key", keymanager.MLDSA65)
+	s.Require().NoError(err)
+
+	caCert := s.createCACertificateWithSigner("MLDSACA", caKey)
+	s.Require().Equal(x509.MLDSA65, caCert.SignatureAlgorithm)
+	s.ca.SetX509CA(&X509CA{
+		Signer:      caKey,
+		Certificate: caCert,
+		NotAfter:    caCert.NotAfter,
+	})
+	s.ca.SetJWTKey(&JWTKey{
+		Signer:   jwtKey,
+		Kid:      "KID",
+		NotAfter: s.clock.Now().Add(10 * time.Minute),
+	})
+
+	workloadKey, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	s.Require().NoError(err)
+	params := s.createWorkloadX509SVIDParams()
+	params.PublicKey = workloadKey.Public()
+	svidChain, err := s.ca.SignWorkloadX509SVID(ctx, params)
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 1)
+	s.Require().Equal(x509.MLDSA65, svidChain[0].SignatureAlgorithm)
+	s.Require().Equal(x509.KeyUsageDigitalSignature, svidChain[0].KeyUsage)
+
+	x509Bundle := x509bundle.FromX509Authorities(trustDomainExample, []*x509.Certificate{caCert})
+	id, _, err := x509svid.Verify(svidChain, x509Bundle, x509svid.WithTime(s.clock.Now()))
+	s.Require().NoError(err)
+	s.Require().Equal("spiffe://example.org/workload", id.String())
+
+	token, err := s.ca.SignWorkloadJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
+	s.Require().NoError(err)
+
+	jwtBundle := jwtbundle.New(trustDomainExample)
+	s.Require().NoError(jwtBundle.AddJWTAuthority("KID", jwtKey.Public()))
+	svid, err := gospiffejwtsvid.ParseAndValidate(token, jwtBundle, []string{"AUDIENCE"})
+	s.Require().NoError(err)
+	s.Require().Equal("spiffe://example.org/workload", svid.ID.String())
+}
+
+func (s *CATestSuite) TestSignWorkloadWITSVIDWithMLDSAKey() {
+	km := fakeserverkeymanager.New(s.T())
+	witKey, err := km.GenerateKey(ctx, "wit-key", keymanager.MLDSA65)
+	s.Require().NoError(err)
+	s.ca.SetWITKey(&WITKey{
+		Signer:   witKey,
+		Kid:      "KID",
+		NotAfter: s.clock.Now().Add(24 * time.Hour),
+	})
+
+	workloadKey, err := mldsa.GenerateKey(mldsa.MLDSA44())
+	s.Require().NoError(err)
+	params := s.createWITSVIDParams(trustDomainExample, 0)
+	params.PublicKey = jose.JSONWebKey{
+		Key:       workloadKey.Public(),
+		Algorithm: string(jose.MLDSA44),
+	}
+	token, err := s.ca.SignWorkloadWITSVID(ctx, params)
+	s.Require().NoError(err)
+
+	parsed, err := jwt.ParseSigned(token, []jose.SignatureAlgorithm{jose.MLDSA65})
+	s.Require().NoError(err)
+	s.Require().Len(parsed.Headers, 1)
+	s.Require().Equal("KID", parsed.Headers[0].KeyID)
+	s.Require().Equal("wit+jwt", parsed.Headers[0].ExtraHeaders[jose.HeaderType])
+
+	var claims struct {
+		jwt.Claims
+		Cnf struct {
+			JWK jose.JSONWebKey `json:"jwk"`
+		} `json:"cnf"`
+	}
+	s.Require().NoError(parsed.Claims(witKey.Public(), &claims))
+	s.Require().Equal("spiffe://example.org/workload", claims.Subject)
+	s.Require().Equal(string(jose.MLDSA44), claims.Cnf.JWK.Algorithm)
+	cnfKey, ok := claims.Cnf.JWK.Key.(*mldsa.PublicKey)
+	s.Require().True(ok)
+	s.Require().True(cnfKey.Equal(workloadKey.Public()))
+
+	// Signature must not verify with a different key
+	otherKey, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	s.Require().NoError(err)
+	s.Require().Error(parsed.Claims(otherKey.Public(), &claims))
+}
+
 func (s *CATestSuite) setX509CA(selfSigned bool) {
 	var upstreamChain []*x509.Certificate
 	if !selfSigned {
@@ -766,5 +865,26 @@ func createCACertificate(t *testing.T, clk clock.Clock, cn string, parent *x509.
 	require.NoError(t, err)
 	cert, err := x509.ParseCertificate(certDER)
 	require.NoError(t, err)
+	return cert
+}
+
+func (s *CATestSuite) createCACertificateWithSigner(cn string, signer crypto.Signer) *x509.Certificate {
+	keyID, err := x509util.GetSubjectKeyID(signer.Public())
+	s.Require().NoError(err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(0),
+		Subject: pkix.Name{
+			CommonName: cn,
+		},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		NotAfter:              s.clock.Now().Add(10 * time.Minute),
+		SubjectKeyId:          keyID,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, signer.Public(), signer)
+	s.Require().NoError(err)
+	cert, err := x509.ParseCertificate(certDER)
+	s.Require().NoError(err)
 	return cert
 }

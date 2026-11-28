@@ -16,5 +16,6 @@ func TestKeyManagerContract(t *testing.T) {
 			plugintest.Load(t, memory.TestBuiltIn(keymanagertest.NewGenerator()), km)
 			return km
 		},
+		SupportsMLDSA: true,
 	})
 }

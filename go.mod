@@ -83,9 +83,9 @@ require (
 	github.com/sigstore/sigstore-go v1.4.0
 	github.com/sirupsen/logrus v1.10.2
 	github.com/smallstep/pkcs7 v0.2.3
-	github.com/spiffe/go-spiffe/v2 v2.9.0
+	github.com/spiffe/go-spiffe/v2 v2.10.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20260924193931-38b883fcd6d1
-	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20261126140517-9428323afb59
+	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20261126201302-52eaee6c2768
 	github.com/stretchr/testify v1.12.1
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.10

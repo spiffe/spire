@@ -2,7 +2,9 @@ package disk_test
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,6 +28,7 @@ func TestKeyManagerContract(t *testing.T) {
 			require.NoError(t, err)
 			return km
 		},
+		SupportsMLDSA: true,
 	})
 }
 
@@ -45,41 +48,39 @@ func TestGenerateKeyBeforeConfigure(t *testing.T) {
 }
 
 func TestGenerateKeyPersistence(t *testing.T) {
-	dir := filepath.Join(spiretest.TempDir(t), "no-such-dir")
+	for _, keyType := range persistenceKeyTypes {
+		t.Run(keyType.String(), func(t *testing.T) {
+			dir := filepath.Join(spiretest.TempDir(t), "no-such-dir")
 
-	km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
-	require.NoError(t, err)
+			km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
+			require.NoError(t, err)
 
-	// assert failure to generate key when directory is gone
-	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
+			// assert failure to generate key when directory is gone
+			_, err = km.GenerateKey(context.Background(), "id", keyType)
+			spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
 
-	// create the directory and generate the key
-	mkdir(t, dir)
-	keyIn, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	require.NoError(t, err)
+			// create the directory and generate the key
+			mkdir(t, dir)
+			keyIn, err := km.GenerateKey(context.Background(), "id", keyType)
+			require.NoError(t, err)
 
-	// reload the plugin. original key should have persisted.
-	km, err = loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
-	require.NoError(t, err)
-	keyOut, err := km.GetKey(context.Background(), "id")
-	require.NoError(t, err)
-	require.Equal(t,
-		publicKeyBytes(t, keyIn),
-		publicKeyBytes(t, keyOut),
-	)
+			// reload the plugin. original key should have persisted.
+			km, err = loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
+			require.NoError(t, err)
+			keyOut, err := km.GetKey(context.Background(), "id")
+			require.NoError(t, err)
+			requireSameKey(t, keyIn, keyOut)
 
-	// remove the directory and try to overwrite. original key should remain.
-	rmdir(t, dir)
-	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
+			// remove the directory and try to overwrite. original key should remain.
+			rmdir(t, dir)
+			_, err = km.GenerateKey(context.Background(), "id", keyType)
+			spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
 
-	keyOut, err = km.GetKey(context.Background(), "id")
-	require.NoError(t, err)
-	require.Equal(t,
-		publicKeyBytes(t, keyIn),
-		publicKeyBytes(t, keyOut),
-	)
+			keyOut, err = km.GetKey(context.Background(), "id")
+			require.NoError(t, err)
+			requireSameKey(t, keyIn, keyOut)
+		})
+	}
 }
 
 func loadPlugin(t *testing.T, configFmt string, configArgs ...any) (keymanager.KeyManager, error) {
@@ -107,4 +108,23 @@ func publicKeyBytes(t *testing.T, key keymanager.Key) []byte {
 	b, err := x509.MarshalPKIXPublicKey(key.Public())
 	require.NoError(t, err)
 	return b
+}
+
+var persistenceKeyTypes = []keymanager.KeyType{
+	keymanager.ECP256,
+	keymanager.MLDSA44,
+	keymanager.MLDSA65,
+	keymanager.MLDSA87,
+}
+
+func requireSameKey(t *testing.T, keyIn, keyOut keymanager.Key) {
+	require.Equal(t, publicKeyBytes(t, keyIn), publicKeyBytes(t, keyOut))
+
+	// Reloaded private key must still produce signatures valid for the original key
+	tmpl := &x509.Certificate{SerialNumber: big.NewInt(1)}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, keyIn.Public(), keyOut)
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+	require.NoError(t, cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature))
 }

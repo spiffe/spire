@@ -9,6 +9,9 @@
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
-    "ES384"
+    "ES384",
+    "ML-DSA-44",
+    "ML-DSA-65",
+    "ML-DSA-87"
   ]
 }

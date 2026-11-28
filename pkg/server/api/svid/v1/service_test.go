@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -3158,6 +3159,24 @@ func TestValidatePublicKeyAndSigningAlgorithm(t *testing.T) {
 			expectedErrors:    []error{nil, errors.New("unsupported signing algorithm for ec-p384 key: ES256"), errors.New("unsupported signing algorithm for ec-p384 key: BLABLA")},
 		},
 		{
+			name:              "ml-dsa-44",
+			key:               mustMLDSA(t, mldsa.MLDSA44()).Public(),
+			signingAlgorithms: []string{"ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "ES256"},
+			expectedErrors:    []error{nil, errors.New("unsupported signing algorithm for ML-DSA-44 key: ML-DSA-65"), errors.New("unsupported signing algorithm for ML-DSA-44 key: ML-DSA-87"), errors.New("unsupported signing algorithm for ML-DSA-44 key: ES256")},
+		},
+		{
+			name:              "ml-dsa-65",
+			key:               mustMLDSA(t, mldsa.MLDSA65()).Public(),
+			signingAlgorithms: []string{"ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "ES256"},
+			expectedErrors:    []error{errors.New("unsupported signing algorithm for ML-DSA-65 key: ML-DSA-44"), nil, errors.New("unsupported signing algorithm for ML-DSA-65 key: ML-DSA-87"), errors.New("unsupported signing algorithm for ML-DSA-65 key: ES256")},
+		},
+		{
+			name:              "ml-dsa-87",
+			key:               mustMLDSA(t, mldsa.MLDSA87()).Public(),
+			signingAlgorithms: []string{"ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "ES256"},
+			expectedErrors:    []error{errors.New("unsupported signing algorithm for ML-DSA-87 key: ML-DSA-44"), errors.New("unsupported signing algorithm for ML-DSA-87 key: ML-DSA-65"), nil, errors.New("unsupported signing algorithm for ML-DSA-87 key: ES256")},
+		},
+		{
 			name:              "invalid key type",
 			key:               "this is not a key",
 			signingAlgorithms: []string{"ES256"},
@@ -3175,6 +3194,12 @@ func TestValidatePublicKeyAndSigningAlgorithm(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustMLDSA(t *testing.T, params mldsa.Parameters) *mldsa.PrivateKey {
+	key, err := mldsa.GenerateKey(params)
+	require.NoError(t, err)
+	return key
 }
 
 type serviceTest struct {
