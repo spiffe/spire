@@ -211,9 +211,8 @@ func TestCreateDuplicateAttestedNode(t *testing.T) {
 	_, err = ds.CreateAttestedNode(ctx, node)
 	require.Equal(t, codes.AlreadyExists, status.Code(err), err)
 
-	events, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-	require.NoError(t, err)
-	require.Equal(t, []string{node.SpiffeId}, eventSpiffeIDs(events))
+	events := eventSpiffeIDs(t, ds)
+	require.Equal(t, []string{node.SpiffeId}, events)
 }
 
 func TestListAttestedNodesValidation(t *testing.T) {
@@ -242,19 +241,6 @@ func TestListAttestedNodesValidation(t *testing.T) {
 	require.EqualError(t, err, "rpc error: code = InvalidArgument desc = unhandled match behavior 99")
 }
 
-func TestFetchAttestedNodeEvent(t *testing.T) {
-	ds := newNodeTestPlugin(t)
-	ctx := context.Background()
-	require.NoError(t, ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{EventID: 7, SpiffeID: "spiffe://example.org/node"}))
-
-	event, err := ds.FetchAttestedNodeEvent(ctx, 7)
-	require.NoError(t, err)
-	require.Equal(t, &datastore.AttestedNodeEvent{EventID: 7, SpiffeID: "spiffe://example.org/node"}, event)
-
-	_, err = ds.FetchAttestedNodeEvent(ctx, 42)
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "datastore-sql: record not found")
-}
-
 func TestPruneAttestedExpiredNodesWritesEvents(t *testing.T) {
 	ds := newNodeTestPlugin(t)
 	ctx := context.Background()
@@ -264,9 +250,8 @@ func TestPruneAttestedExpiredNodesWritesEvents(t *testing.T) {
 
 	require.NoError(t, ds.PruneAttestedExpiredNodes(ctx, time.Now(), false, 0))
 
-	resp, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-	require.NoError(t, err)
-	require.Equal(t, []string{node.SpiffeId, node.SpiffeId}, eventSpiffeIDs(resp), "create and prune events")
+	resp := eventSpiffeIDs(t, ds)
+	require.Equal(t, []string{node.SpiffeId, node.SpiffeId}, resp, "create and prune events")
 }
 
 func TestFailedNodeWritesLeaveNoEvent(t *testing.T) {
@@ -280,9 +265,8 @@ func TestFailedNodeWritesLeaveNoEvent(t *testing.T) {
 	_, err = ds.DeleteAttestedNode(ctx, "spiffe://example.org/missing")
 	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "datastore-sql: record not found")
 
-	resp, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-	require.NoError(t, err)
-	require.Empty(t, resp.Events)
+	resp := eventSpiffeIDs(t, ds)
+	require.Empty(t, resp)
 }
 
 func TestJoinTokenAttestedNodesAreNotDeleted(t *testing.T) {
@@ -306,9 +290,8 @@ func TestJoinTokenAttestedNodesAreNotDeleted(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{joinToken.SpiffeId}, nodeIDs(resp.Nodes))
 
-	events, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-	require.NoError(t, err)
-	require.ElementsMatch(t, []string{joinToken.SpiffeId, other.SpiffeId, untyped.SpiffeId, other.SpiffeId, untyped.SpiffeId}, eventSpiffeIDs(events), "no event for the refused delete")
+	events := eventSpiffeIDs(t, ds)
+	require.ElementsMatch(t, []string{joinToken.SpiffeId, other.SpiffeId, untyped.SpiffeId, other.SpiffeId, untyped.SpiffeId}, events, "no event for the refused delete")
 }
 
 func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
@@ -320,7 +303,6 @@ func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
 	ro := newSQLitePlugin(t)
 	configure(t, ro, fmt.Sprintf("database_type = \"sqlite3\"\nconnection_string = %q\n", roPath))
 	require.NoError(t, ro.SetNodeSelectors(ctx, id, []*common.Selector{{Type: "db", Value: "ro"}}))
-	require.NoError(t, ro.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{SpiffeID: "spiffe://example.org/ro"}))
 
 	ds := newSQLitePlugin(t)
 	ds.dialectFor = func(databaseType string, log logrus.FieldLogger) (dialect, error) {
@@ -329,7 +311,6 @@ func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
 	}
 	configure(t, ds, fmt.Sprintf("database_type = \"sqlite3\"\nconnection_string = %q\nro_connection_string = %q\n", rwPath, roPath))
 	require.NoError(t, ds.SetNodeSelectors(ctx, id, []*common.Selector{{Type: "db", Value: "rw"}}))
-	require.NoError(t, ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{SpiffeID: "spiffe://example.org/rw"}))
 
 	for _, tt := range []struct {
 		consistency datastore.DataConsistency
@@ -346,10 +327,6 @@ func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
 		listed, err := ds.ListNodeSelectors(ctx, &datastore.ListNodeSelectorsRequest{DataConsistency: tt.consistency})
 		require.NoError(t, err)
 		spiretest.AssertProtoListEqual(t, expected, listed.Selectors[id])
-
-		events, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{DataConsistency: tt.consistency})
-		require.NoError(t, err)
-		require.Equal(t, []string{id, "spiffe://example.org/" + tt.expected}, eventSpiffeIDs(events))
 	}
 }
 
@@ -455,9 +432,13 @@ func nodeIDs(nodes []*common.AttestedNode) []string {
 	return ids
 }
 
-func eventSpiffeIDs(resp *datastore.ListAttestedNodeEventsResponse) []string {
-	ids := make([]string, 0, len(resp.Events))
-	for _, event := range resp.Events {
+// eventSpiffeIDs returns the SPIFFE ID of every attested node event, oldest
+// first.
+func eventSpiffeIDs(t *testing.T, ds *Plugin) []string {
+	var events []AttestedNodeEvent
+	require.NoError(t, ds.RawScan(&events, "SELECT id, spiffe_id FROM attested_node_entries_events ORDER BY id"))
+	ids := make([]string, 0, len(events))
+	for _, event := range events {
 		ids = append(ids, event.SpiffeID)
 	}
 	return ids

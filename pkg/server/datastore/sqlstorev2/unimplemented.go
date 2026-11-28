@@ -46,14 +46,22 @@ func (ds *Plugin) UpdateRegistrationEntry(_ context.Context, _ *common.Registrat
 	return nil, errNotImplemented
 }
 
-func (ds *Plugin) ListRegistrationEntryEvents(_ context.Context, _ *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
+func (ds *Plugin) FetchAttestedNodeChanges(_ context.Context, _ *datastore.FetchAttestedNodeChangesRequest) (*datastore.FetchAttestedNodeChangesResponse, error) {
 	return nil, errNotImplemented
 }
 
-func (ds *Plugin) PruneRegistrationEntryEvents(_ context.Context, _ time.Duration) error {
+func (ds *Plugin) FetchRegistrationEntryChanges(_ context.Context, _ *datastore.FetchRegistrationEntryChangesRequest) (*datastore.FetchRegistrationEntryChangesResponse, error) {
+	return nil, errNotImplemented
+}
+
+func (ds *Plugin) CreateRegistrationEntryEventForTesting(_ context.Context, _ *datastore.RegistrationEntryEvent) error {
 	return errNotImplemented
 }
 
-func (ds *Plugin) FetchRegistrationEntryEvent(_ context.Context, _ uint) (*datastore.RegistrationEntryEvent, error) {
-	return nil, errNotImplemented
+func (ds *Plugin) DeleteRegistrationEntryEventForTesting(_ context.Context, _ uint) error {
+	return errNotImplemented
+}
+
+func (ds *Plugin) PruneEventsForTesting(_ context.Context, _ time.Duration) error {
+	return errNotImplemented
 }
