@@ -104,12 +104,7 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 	return j.save(ctx)
 }
 
-// activeAuthorityID returns the authority ID that identifies the CA journal of
-// this server in the datastore. It is the SHA-256 subject key ID calculated
-// from the public key of the CA certificate instead of the one in the
-// certificate, since an upstream authority may have derived that one in a
-// different way, and it doesn't change if FIPS mode is enabled or disabled. If
-// the certificate can't be parsed, the authority ID of the entry is used.
+// activeAuthorityID returns the SHA-256 subject key ID of the CA public key.
 func activeAuthorityID(entry *journal.X509CAEntry) string {
 	cert, err := x509.ParseCertificate(entry.Certificate)
 	if err != nil {
