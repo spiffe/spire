@@ -369,7 +369,7 @@ func TestUpdateX509CAStatusStoresKeyDerivedAuthorityID(t *testing.T) {
 	subjectKeyID, err := x509util.GetSubjectKeyID(cert.PublicKey)
 	require.NoError(t, err)
 	expected := x509util.SubjectKeyIDToString(subjectKeyID)
-	require.NotEqual(t, authorityID, expected)
+	require.NotEqual(t, expected, authorityID)
 	require.Equal(t, expected, testJournal.activeX509AuthorityID)
 
 	// The journal is found by the key after a restart.
