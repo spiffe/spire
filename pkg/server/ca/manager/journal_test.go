@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -341,6 +342,40 @@ func TestUpdateX509CAStatus(t *testing.T) {
 	require.ErrorContains(t, err, fmt.Sprintf("no journal entry found with authority ID %q", nonExistingAuthorityID))
 }
 
+func TestUpdateX509CAStatusStoresKeyDerivedAuthorityID(t *testing.T) {
+	// The upstream authority picked a subject key ID that is not derived from
+	// the public key in any way SPIRE knows. The journal is still identified
+	// by the key, so that it can be found again after a restart.
+	test := setupJournalTest(t)
+	now := test.now()
+
+	template := *rootCerts["X509-Root-A"]
+	template.SubjectKeyId = []byte("chosen-by-the-upstream")
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, kmKeys["X509-CA-A"].Public(), kmKeys["X509-CA-A"])
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(certDER)
+	require.NoError(t, err)
+
+	testJournal := test.loadJournal(t)
+	require.NoError(t, testJournal.AppendX509CA(ctx, "A", now, &ca.X509CA{
+		Signer:      kmKeys["X509-CA-A"],
+		Certificate: cert,
+		NotAfter:    cert.NotAfter,
+	}))
+
+	authorityID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+	require.NoError(t, testJournal.UpdateX509CAStatus(ctx, authorityID, journal.Status_ACTIVE))
+
+	subjectKeyID, err := x509util.GetSubjectKeyID(cert.PublicKey)
+	require.NoError(t, err)
+	expected := x509util.SubjectKeyIDToString(subjectKeyID)
+	require.NotEqual(t, authorityID, expected)
+	require.Equal(t, expected, testJournal.activeX509AuthorityID)
+
+	// The journal is found by the key after a restart.
+	require.Equal(t, expected, test.loadJournal(t).activeX509AuthorityID)
+}
+
 func TestUpdateX509CAStatusKeepsStatusOnSaveFailure(t *testing.T) {
 	test := setupJournalTest(t)
 	now := test.now()
@@ -585,7 +620,7 @@ func TestLoadJournalMatchesAnySubjectKeyIDDerivation(t *testing.T) {
 	require.NoError(t, err)
 	subjectKeyIDs, err := x509util.GetSubjectKeyIDs(kmKeys[0].Public())
 	require.NoError(t, err)
-	require.Len(t, subjectKeyIDs, 2)
+	require.NotEmpty(t, subjectKeyIDs)
 
 	entriesBytes, err := proto.Marshal(&journal.Entries{})
 	require.NoError(t, err)

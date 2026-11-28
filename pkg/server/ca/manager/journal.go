@@ -91,7 +91,7 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 			found = true
 			entry.Status = status
 			if status == journal.Status_ACTIVE {
-				j.activeX509AuthorityID = entry.AuthorityId
+				j.activeX509AuthorityID = activeAuthorityID(entry)
 			}
 			break
 		}
@@ -102,6 +102,24 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 	}
 
 	return j.save(ctx)
+}
+
+// activeAuthorityID returns the authority ID that identifies the CA journal of
+// this server in the datastore. It is calculated from the public key of the CA
+// certificate instead of taken from its subject key ID, since an upstream
+// authority may have derived that one in a different way than findCAJournal
+// does. If the certificate can't be parsed, the authority ID of the entry is
+// used.
+func activeAuthorityID(entry *journal.X509CAEntry) string {
+	cert, err := x509.ParseCertificate(entry.Certificate)
+	if err != nil {
+		return entry.AuthorityId
+	}
+	subjectKeyID, err := x509util.GetSubjectKeyID(cert.PublicKey)
+	if err != nil {
+		return entry.AuthorityId
+	}
+	return x509util.SubjectKeyIDToString(subjectKeyID)
 }
 
 // UpdateX509CAExpirations updates the expiration of stored X509CA entries.

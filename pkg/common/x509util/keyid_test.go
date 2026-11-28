@@ -68,7 +68,7 @@ func TestGetSubjectKeyIDs(t *testing.T) {
 		expected []string
 	}{
 		{name: "SHA-1 first by default", sha256: false, expected: []string{sha1ID, sha256ID}},
-		{name: "SHA-256 first if fips140 is enabled", sha256: true, expected: []string{sha256ID, sha1ID}},
+		{name: "only SHA-256 if fips140 is enabled", sha256: true, expected: []string{sha256ID}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			x509utilsha256skid = tt.sha256
