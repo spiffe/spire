@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/protoutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
@@ -92,12 +93,11 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 	return node, nil
 }
 
-// DeleteAttestedNode deletes the given attested node and its selectors. Join
-// token nodes are refused with Unimplemented until their alias entries can be
-// deleted too.
+// DeleteAttestedNode deletes the given attested node and its selectors, and
+// the alias entries of a join token node.
 func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID)
+		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID, ds.log)
 		if err != nil {
 			return err
 		}
@@ -110,8 +110,7 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 
 // PruneAttestedExpiredNodes deletes up to batchSize (default if non-positive)
 // nodes that expired before expiredBefore, keeping banned nodes and, unless
-// includeNonReattestable is set, non-reattestable ones. Join token nodes are
-// skipped, as DeleteAttestedNode refuses them.
+// includeNonReattestable is set, non-reattestable ones.
 func (ds *Plugin) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool, batchSize int) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
 		return pruneAttestedExpiredNodes(tx, expiredBefore, includeNonReattestable, batchSize, ds.log)
@@ -290,10 +289,29 @@ func filterNodes(query *gorm.DB, dbType string, f nodeFilter) *gorm.DB {
 	return query
 }
 
-// filterNodesBySelectors restricts query to nodes whose selectors match by:
-// MatchAny shares one with the set, Superset has all of it, Subset has only
-// selectors from it (at least one), and Exact is both Superset and Subset.
+// filterNodesBySelectors restricts query to nodes whose selectors match by.
 func filterNodesBySelectors(query *gorm.DB, dbType string, by *datastore.BySelectors) *gorm.DB {
+	return filterBySelectors(query, dbType, by, "node_resolver_map_entries", "spiffe_id", "attested_node_entries.spiffe_id", matchByCount)
+}
+
+// supersetMatch is how a query checks that a row has every selector of a set.
+type supersetMatch int
+
+const (
+	// matchByCount counts matching selector rows; for tables without a
+	// (type, value) index, where a check per selector would scan.
+	matchByCount supersetMatch = iota
+	// matchEachIn checks each selector with IN, starting from the rarest.
+	matchEachIn
+	// matchEachExists checks each selector with a correlated EXISTS, cheapest
+	// when other filters already leave few rows.
+	matchEachExists
+)
+
+// filterBySelectors restricts query to rows whose selectors (in table, linked
+// by owner to outer) match by: MatchAny shares one, Superset has all, Subset
+// has only set members (at least one), Exact is both.
+func filterBySelectors(query *gorm.DB, dbType string, by *datastore.BySelectors, table, owner, outer string, match supersetMatch) *gorm.DB {
 	selectors := uniqueSelectors(by.Selectors)
 	inSet, args := selectorSetCondition(selectors, false)
 	// The check for selectors outside the set compares case-sensitively, which
@@ -302,41 +320,54 @@ func filterNodesBySelectors(query *gorm.DB, dbType string, by *datastore.BySelec
 
 	// Each call builds a new statement; gorm handles share state when chained.
 	selectorRows := func(cond string) *gorm.DB {
-		return query.Session(&gorm.Session{NewDB: true}).Model(&NodeSelector{}).Select("spiffe_id").Where(cond, args...)
+		return query.Session(&gorm.Session{NewDB: true}).Table(table).Select(owner).Where(cond, args...)
 	}
 	matching := selectorRows(inSet)
-	hasAll := selectorRows(inSet).Group("spiffe_id").Having("COUNT(*) = ?", len(selectors))
-	if sqlcommon.IsMySQLDbType(dbType) {
-		// MySQL collations ignore case, so one row can match two requested
-		// selectors; each one is checked on its own instead.
-		matchedEach := make([]string, len(selectors))
-		for i := range selectors {
-			matchedEach[i] = "MAX(CASE WHEN type = ? AND value = ? THEN 1 ELSE 0 END)"
+	hasAll := func(q *gorm.DB) *gorm.DB {
+		switch match {
+		case matchEachIn:
+			for _, sel := range selectors {
+				q = q.Where(outer+" IN (?)", query.Session(&gorm.Session{NewDB: true}).Table(table).Select(owner).
+					Where("type = ? AND value = ?", sel.Type, sel.Value))
+			}
+			return q
+		case matchEachExists:
+			for _, sel := range selectors {
+				q = q.Where("EXISTS (?)", query.Session(&gorm.Session{NewDB: true}).Table(table+" AS e").Select("1").
+					Where("e."+owner+" = "+outer).Where("e.type = ? AND e.value = ?", sel.Type, sel.Value))
+			}
+			return q
 		}
-		hasAll = selectorRows(inSet).Group("spiffe_id").
-			Having(strings.Join(matchedEach, " + ")+" = ?", append(slices.Clone(args), len(selectors))...)
+		// MySQL collations ignore case, so one row can match two requested
+		// selectors; there each one is counted on its own.
+		counted := selectorRows(inSet).Group(owner).Having("COUNT(*) = ?", len(selectors))
+		if sqlcommon.IsMySQLDbType(dbType) {
+			matchedEach := make([]string, len(selectors))
+			for i := range selectors {
+				matchedEach[i] = "MAX(CASE WHEN type = ? AND value = ? THEN 1 ELSE 0 END)"
+			}
+			counted = selectorRows(inSet).Group(owner).
+				Having(strings.Join(matchedEach, " + ")+" = ?", append(slices.Clone(args), len(selectors))...)
+		}
+		return q.Joins("JOIN (?) AS c ON c."+owner+" = "+outer, counted)
 	}
 	// NOT EXISTS rather than NOT IN: PostgreSQL rescans a NOT IN subquery per
 	// row once its result outgrows work_mem.
-	outside := query.Session(&gorm.Session{NewDB: true}).Table("node_resolver_map_entries AS o").Select("1").
-		Where("o.spiffe_id = attested_node_entries.spiffe_id").Where("o.type IS NOT NULL").Where("NOT ("+inSetExact+")", args...)
-
-	// Joining the matching set, rather than IN (subquery), lets PostgreSQL
-	// build it once with a hash join instead of probing the selector index
-	// once per node. Subset is the exception: there IN plans better.
-	join := func(q, sub *gorm.DB) *gorm.DB {
-		return q.Joins("JOIN (?) AS m ON m.spiffe_id = attested_node_entries.spiffe_id", sub)
-	}
+	outside := query.Session(&gorm.Session{NewDB: true}).Table(table+" AS o").Select("1").
+		Where("o."+owner+" = "+outer).Where("o.type IS NOT NULL").Where("NOT ("+inSetExact+")", args...)
 
 	switch by.Match {
 	case datastore.MatchAny:
-		return join(query, matching.Distinct())
+		// Joining the matching set, rather than IN (subquery), lets PostgreSQL
+		// build it once with a hash join instead of probing the selector index
+		// once per row.
+		return query.Joins("JOIN (?) AS m ON m."+owner+" = "+outer, matching.Distinct())
 	case datastore.Superset:
-		return join(query, hasAll)
+		return hasAll(query)
 	case datastore.Subset:
-		return query.Where("attested_node_entries.spiffe_id IN (?)", matching).Where("NOT EXISTS (?)", outside)
+		return query.Where(outer+" IN (?)", matching).Where("NOT EXISTS (?)", outside)
 	default: // datastore.Exact; validateSelectorMatch rejects anything else.
-		return join(query, hasAll).Where("NOT EXISTS (?)", outside)
+		return hasAll(query).Where("NOT EXISTS (?)", outside)
 	}
 }
 
@@ -356,7 +387,7 @@ func validateSelectorMatch(by *datastore.BySelectors) error {
 }
 
 // selectorSetCondition returns a condition, and its arguments, that holds for
-// node selector rows in the given set, comparing as binary strings if binary.
+// selector rows in the given set, comparing as binary strings if binary.
 func selectorSetCondition(selectors []*common.Selector, binary bool) (string, []any) {
 	cond := "(type = ? AND value = ?)"
 	if binary {
@@ -372,7 +403,7 @@ func selectorSetCondition(selectors []*common.Selector, binary bool) (string, []
 }
 
 // uniqueSelectors returns selectors without duplicates, so a count of matching
-// rows per node can be compared against the set size.
+// rows can be compared against the set size.
 func uniqueSelectors(selectors []*common.Selector) []*common.Selector {
 	type key struct{ t, v string }
 	seen := make(map[key]struct{}, len(selectors))
@@ -566,15 +597,15 @@ func updateAttestedNode(tx *gorm.DB, n *common.AttestedNode, mask *common.Attest
 	return modelToAttestedNode(model), nil
 }
 
-func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
+func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string, log logrus.FieldLogger) (*common.AttestedNode, error) {
 	var model AttestedNode
 	if err := tx.Where("spiffe_id = ?", spiffeID).Take(&model).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
-	// TODO: delete the join token alias registration entries once registration
-	// entries are implemented; until then, refuse rather than leave them.
 	if model.DataType == "join_token" {
-		return nil, status.Error(codes.Unimplemented, "datastore-sql: deleting join token attested nodes is not implemented")
+		if err := deleteJoinTokenAliasEntries(tx, spiffeID, log); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Where("spiffe_id = ?", spiffeID).Delete(&NodeSelector{}).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
@@ -583,6 +614,37 @@ func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string) (*common.Attes
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 	return modelToAttestedNode(model), nil
+}
+
+// deleteJoinTokenAliasEntries deletes the alias entries the agent API creates
+// for a join token node: parented to it, with the single selector
+// spiffe_id:<parent ID>. Other entries parented to the node are kept.
+func deleteJoinTokenAliasEntries(tx *gorm.DB, spiffeID string, log logrus.FieldLogger) error {
+	children, _, err := loadEntries(tx, false, "%[1]s IN (SELECT id FROM registered_entries WHERE parent_id = ?)", spiffeID)
+	if err != nil {
+		return err
+	}
+	// Matched in Go against the stored parent ID: MySQL compares ignoring case.
+	var aliases []*common.RegistrationEntry
+	for _, e := range children {
+		if len(e.Selectors) == 1 && e.Selectors[0].Type == "spiffe_id" && e.Selectors[0].Value == e.ParentId {
+			aliases = append(aliases, e)
+		}
+	}
+	for _, entry := range aliases {
+		if _, err := deleteRegistrationEntry(tx, entry.EntryId); err != nil {
+			return err
+		}
+		if err := createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{EntryID: entry.EntryId}); err != nil {
+			return err
+		}
+		log.WithFields(logrus.Fields{
+			telemetry.SPIFFEID:       entry.SpiffeId,
+			telemetry.ParentID:       entry.ParentId,
+			telemetry.RegistrationID: entry.EntryId,
+		}).Info("Cascade-deleted registration entry on attested node deletion")
+	}
+	return nil
 }
 
 func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, includeNonReattestable bool, batchSize int, log logrus.FieldLogger) error {
@@ -598,23 +660,13 @@ func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, includeNonR
 		return query
 	}
 
-	// TODO: prune join token attested nodes once their deletion is implemented;
-	// skipping them keeps one from failing every batch.
-	var skipped int64
-	if err := expiredNodes().Where("data_type = ?", "join_token").Count(&skipped).Error; err != nil {
-		return sqlcommon.NewWrappedSQLError(err)
-	}
-	if skipped > 0 {
-		log.WithField("count", skipped).Warn("Skipped pruning expired join token agents: not implemented")
-	}
-
 	var expired []AttestedNode
-	if err := expiredNodes().Where("(data_type IS NULL OR data_type <> ?)", "join_token").Limit(batchSize).Find(&expired).Error; err != nil {
+	if err := expiredNodes().Limit(batchSize).Find(&expired).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	for _, node := range expired {
-		if _, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID); err != nil {
+		if _, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID, log); err != nil {
 			return err
 		}
 		if err := createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{SpiffeID: node.SpiffeID}); err != nil {
