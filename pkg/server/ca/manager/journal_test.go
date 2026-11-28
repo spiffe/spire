@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -22,6 +24,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -339,6 +342,40 @@ func TestUpdateX509CAStatus(t *testing.T) {
 	require.ErrorContains(t, err, fmt.Sprintf("no journal entry found with authority ID %q", nonExistingAuthorityID))
 }
 
+func TestUpdateX509CAStatusStoresKeyDerivedAuthorityID(t *testing.T) {
+	// The upstream authority picked a subject key ID that is not derived from
+	// the public key in any way SPIRE knows. The journal is still identified
+	// by the key, so that it can be found again after a restart.
+	test := setupJournalTest(t)
+	now := test.now()
+
+	template := *rootCerts["X509-Root-A"]
+	template.SubjectKeyId = []byte("chosen-by-the-upstream")
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, kmKeys["X509-CA-A"].Public(), kmKeys["X509-CA-A"])
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(certDER)
+	require.NoError(t, err)
+
+	testJournal := test.loadJournal(t)
+	require.NoError(t, testJournal.AppendX509CA(ctx, "A", now, &ca.X509CA{
+		Signer:      kmKeys["X509-CA-A"],
+		Certificate: cert,
+		NotAfter:    cert.NotAfter,
+	}))
+
+	authorityID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+	require.NoError(t, testJournal.UpdateX509CAStatus(ctx, authorityID, journal.Status_ACTIVE))
+
+	subjectKeyID, err := x509util.GetSHA256SubjectKeyID(cert.PublicKey)
+	require.NoError(t, err)
+	expected := x509util.SubjectKeyIDToString(subjectKeyID)
+	require.NotEqual(t, expected, authorityID)
+	require.Equal(t, expected, testJournal.activeX509AuthorityID)
+
+	// The journal is found by the key after a restart.
+	require.Equal(t, expected, test.loadJournal(t).activeX509AuthorityID)
+}
+
 func TestUpdateX509CAStatusKeepsStatusOnSaveFailure(t *testing.T) {
 	test := setupJournalTest(t)
 	now := test.now()
@@ -356,7 +393,9 @@ func TestUpdateX509CAStatusKeepsStatusOnSaveFailure(t *testing.T) {
 	authorityIDA := x509util.SubjectKeyIDToString(rootCerts["X509-Root-A"].SubjectKeyId)
 	err = testJournal.UpdateX509CAStatus(ctx, authorityIDA, journal.Status_ACTIVE)
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
-	require.Equal(t, authorityIDA, testJournal.activeX509AuthorityID)
+	sha256SKI, err := x509util.GetSHA256SubjectKeyID(rootCerts["X509-Root-A"].PublicKey)
+	require.NoError(t, err)
+	require.Equal(t, x509util.SubjectKeyIDToString(sha256SKI), testJournal.activeX509AuthorityID)
 
 	// Activation proceeds even if journal persistence fails, so the in-memory
 	// journal should still reflect the active authority.
@@ -572,6 +611,37 @@ func TestBadProto(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, j)
 	require.Contains(t, err.Error(), `failed to load journal from datastore: unable to unmarshal entries from CA journal record:`)
+}
+
+func TestLoadJournalMatchesAnySubjectKeyIDDerivation(t *testing.T) {
+	// Upstream authorities may fill in the subject key ID of the CA
+	// certificate themselves, e.g. with a SHA-256 hash of the public key. The
+	// journal must be found anyway.
+	test := setupJournalTest(t)
+	kmKeys, err := test.jc.cat.GetKeyManager().GetKeys(ctx)
+	require.NoError(t, err)
+	subjectKeyIDs, err := x509util.GetSubjectKeyIDs(kmKeys[0].Public())
+	require.NoError(t, err)
+	require.NotEmpty(t, subjectKeyIDs)
+
+	entriesBytes, err := proto.Marshal(&journal.Entries{})
+	require.NoError(t, err)
+
+	for _, subjectKeyID := range subjectKeyIDs {
+		authorityID := x509util.SubjectKeyIDToString(subjectKeyID)
+		t.Run(authorityID, func(t *testing.T) {
+			test := setupJournalTest(t)
+			stored, err := test.ds.SetCAJournal(ctx, &datastore.CAJournal{
+				Data:                  entriesBytes,
+				ActiveX509AuthorityID: authorityID,
+			})
+			require.NoError(t, err)
+
+			j := test.loadJournal(t)
+			require.Equal(t, stored.ID, j.caJournalID)
+			require.Equal(t, authorityID, j.activeX509AuthorityID)
+		})
+	}
 }
 
 func getOneX509AuthorityID(ctx context.Context, t *testing.T, km keymanager.KeyManager) string {

@@ -91,7 +91,7 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 			found = true
 			entry.Status = status
 			if status == journal.Status_ACTIVE {
-				j.activeX509AuthorityID = entry.AuthorityId
+				j.activeX509AuthorityID = activeAuthorityID(entry)
 			}
 			break
 		}
@@ -102,6 +102,19 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 	}
 
 	return j.save(ctx)
+}
+
+// activeAuthorityID returns the SHA-256 subject key ID of the CA public key.
+func activeAuthorityID(entry *journal.X509CAEntry) string {
+	cert, err := x509.ParseCertificate(entry.Certificate)
+	if err != nil {
+		return entry.AuthorityId
+	}
+	subjectKeyID, err := x509util.GetSHA256SubjectKeyID(cert.PublicKey)
+	if err != nil {
+		return entry.AuthorityId
+	}
+	return x509util.SubjectKeyIDToString(subjectKeyID)
 }
 
 // UpdateX509CAExpirations updates the expiration of stored X509CA entries.
@@ -274,26 +287,32 @@ func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, erro
 	}
 
 	for _, k := range kmKeys {
-		subjectKeyID, err := x509util.GetSubjectKeyID(k.Public())
+		// The active authority ID is the subject key ID of the CA certificate,
+		// which the upstream authority may have derived with a different hash
+		// than the one SPIRE uses (e.g. SHA-256 instead of SHA-1), so try
+		// every derivation.
+		subjectKeyIDs, err := x509util.GetSubjectKeyIDs(k.Public())
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate the subject key identifier for public key with ID %q", k.ID())
 		}
 
-		authorityID := x509util.SubjectKeyIDToString(subjectKeyID)
-		caJournal, err := ds.FetchCAJournal(ctx, authorityID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch CA journal from datastore: %w", err)
-		}
-		if caJournal != nil {
-			// There is a CA journal record that has an active X509 authority
-			// ID that matches with one of the public keys of this server. This
-			// means that this record belongs to this server.
-			j.config.log.WithFields(logrus.Fields{
-				telemetry.CAJournalID:      caJournal.ID,
-				telemetry.LocalAuthorityID: authorityID,
-			}).Debug("Found a CA journal record that matches with a local X509 authority ID")
+		for _, subjectKeyID := range subjectKeyIDs {
+			authorityID := x509util.SubjectKeyIDToString(subjectKeyID)
+			caJournal, err := ds.FetchCAJournal(ctx, authorityID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch CA journal from datastore: %w", err)
+			}
+			if caJournal != nil {
+				// There is a CA journal record that has an active X509 authority
+				// ID that matches with one of the public keys of this server. This
+				// means that this record belongs to this server.
+				j.config.log.WithFields(logrus.Fields{
+					telemetry.CAJournalID:      caJournal.ID,
+					telemetry.LocalAuthorityID: authorityID,
+				}).Debug("Found a CA journal record that matches with a local X509 authority ID")
 
-			return caJournal, nil
+				return caJournal, nil
+			}
 		}
 	}
 

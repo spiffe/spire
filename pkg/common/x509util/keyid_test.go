@@ -50,3 +50,39 @@ func TestSubjectKeyIDToString(t *testing.T) {
 		require.Equal(t, "01236f15caa45918323f309f2651d2cb3989c404", str)
 	})
 }
+
+func TestGetSubjectKeyIDs(t *testing.T) {
+	originalSKISetting := x509utilsha256skid
+	defer func() {
+		x509utilsha256skid = originalSKISetting
+	}()
+
+	const (
+		sha1ID   = "42c702d94031c6bc849ec99fa361802a877bdade"
+		sha256ID = "01236f15caa45918323f309f2651d2cb3989c404"
+	)
+
+	for _, tt := range []struct {
+		name     string
+		sha256   bool
+		expected []string
+	}{
+		{name: "SHA-256 and SHA-1 by default", sha256: false, expected: []string{sha256ID, sha1ID}},
+		{name: "only SHA-256 if fips140 is enabled", sha256: true, expected: []string{sha256ID}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			x509utilsha256skid = tt.sha256
+			skis, err := GetSubjectKeyIDs(privateKey.Public())
+			require.NoError(t, err)
+			var actual []string
+			for _, ski := range skis {
+				actual = append(actual, SubjectKeyIDToString(ski))
+			}
+			require.Equal(t, tt.expected, actual)
+
+			sha256SKI, err := GetSHA256SubjectKeyID(privateKey.Public())
+			require.NoError(t, err)
+			require.Equal(t, sha256ID, SubjectKeyIDToString(sha256SKI))
+		})
+	}
+}
