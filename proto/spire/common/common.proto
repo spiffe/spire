@@ -190,6 +190,9 @@ message Bundle {
 
     /** list of WIT signing keys */
     repeated PublicKey wit_signing_keys = 6;
+
+    /** list of WAG (Workload Authorization Grant) signing keys */
+    repeated PublicKey wag_signing_keys = 7;
 }
 
 message BundleMask {
@@ -199,6 +202,7 @@ message BundleMask {
     bool sequence_number = 4;
     bool x509_tainted_keys = 5;
     bool wit_signing_keys = 6;
+    bool wag_signing_keys = 7;
 }
 
 message AttestedNodeMask{

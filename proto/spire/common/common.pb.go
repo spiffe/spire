@@ -875,6 +875,8 @@ type Bundle struct {
 	SequenceNumber uint64 `protobuf:"varint,5,opt,name=sequence_number,json=sequenceNumber,proto3" json:"sequence_number,omitempty"`
 	//* list of WIT signing keys
 	WitSigningKeys []*PublicKey `protobuf:"bytes,6,rep,name=wit_signing_keys,json=witSigningKeys,proto3" json:"wit_signing_keys,omitempty"`
+	//* list of WAG (Workload Authorization Grant) signing keys
+	WagSigningKeys []*PublicKey `protobuf:"bytes,7,rep,name=wag_signing_keys,json=wagSigningKeys,proto3" json:"wag_signing_keys,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -951,6 +953,13 @@ func (x *Bundle) GetWitSigningKeys() []*PublicKey {
 	return nil
 }
 
+func (x *Bundle) GetWagSigningKeys() []*PublicKey {
+	if x != nil {
+		return x.WagSigningKeys
+	}
+	return nil
+}
+
 type BundleMask struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	RootCas         bool                   `protobuf:"varint,1,opt,name=root_cas,json=rootCas,proto3" json:"root_cas,omitempty"`
@@ -959,6 +968,7 @@ type BundleMask struct {
 	SequenceNumber  bool                   `protobuf:"varint,4,opt,name=sequence_number,json=sequenceNumber,proto3" json:"sequence_number,omitempty"`
 	X509TaintedKeys bool                   `protobuf:"varint,5,opt,name=x509_tainted_keys,json=x509TaintedKeys,proto3" json:"x509_tainted_keys,omitempty"`
 	WitSigningKeys  bool                   `protobuf:"varint,6,opt,name=wit_signing_keys,json=witSigningKeys,proto3" json:"wit_signing_keys,omitempty"`
+	WagSigningKeys  bool                   `protobuf:"varint,7,opt,name=wag_signing_keys,json=wagSigningKeys,proto3" json:"wag_signing_keys,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1031,6 +1041,13 @@ func (x *BundleMask) GetX509TaintedKeys() bool {
 func (x *BundleMask) GetWitSigningKeys() bool {
 	if x != nil {
 		return x.WitSigningKeys
+	}
+	return false
+}
+
+func (x *BundleMask) GetWagSigningKeys() bool {
+	if x != nil {
+		return x.WagSigningKeys
 	}
 	return false
 }
@@ -1281,14 +1298,15 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x03kid\x18\x02 \x01(\tR\x03kid\x12\x1b\n" +
 	"\tnot_after\x18\x03 \x01(\x03R\bnotAfter\x12\x1f\n" +
 	"\vtainted_key\x18\x04 \x01(\bR\n" +
-	"taintedKey\"\xb8\x02\n" +
+	"taintedKey\"\xfb\x02\n" +
 	"\x06Bundle\x12&\n" +
 	"\x0ftrust_domain_id\x18\x01 \x01(\tR\rtrustDomainId\x124\n" +
 	"\broot_cas\x18\x02 \x03(\v2\x19.spire.common.CertificateR\arootCas\x12A\n" +
 	"\x10jwt_signing_keys\x18\x03 \x03(\v2\x17.spire.common.PublicKeyR\x0ejwtSigningKeys\x12!\n" +
 	"\frefresh_hint\x18\x04 \x01(\x03R\vrefreshHint\x12'\n" +
 	"\x0fsequence_number\x18\x05 \x01(\x04R\x0esequenceNumber\x12A\n" +
-	"\x10wit_signing_keys\x18\x06 \x03(\v2\x17.spire.common.PublicKeyR\x0ewitSigningKeys\"\xf3\x01\n" +
+	"\x10wit_signing_keys\x18\x06 \x03(\v2\x17.spire.common.PublicKeyR\x0ewitSigningKeys\x12A\n" +
+	"\x10wag_signing_keys\x18\a \x03(\v2\x17.spire.common.PublicKeyR\x0ewagSigningKeys\"\x9d\x02\n" +
 	"\n" +
 	"BundleMask\x12\x19\n" +
 	"\broot_cas\x18\x01 \x01(\bR\arootCas\x12(\n" +
@@ -1296,7 +1314,8 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\frefresh_hint\x18\x03 \x01(\bR\vrefreshHint\x12'\n" +
 	"\x0fsequence_number\x18\x04 \x01(\bR\x0esequenceNumber\x12*\n" +
 	"\x11x509_tainted_keys\x18\x05 \x01(\bR\x0fx509TaintedKeys\x12(\n" +
-	"\x10wit_signing_keys\x18\x06 \x01(\bR\x0ewitSigningKeys\"\xc4\x02\n" +
+	"\x10wit_signing_keys\x18\x06 \x01(\bR\x0ewitSigningKeys\x12(\n" +
+	"\x10wag_signing_keys\x18\a \x01(\bR\x0ewagSigningKeys\"\xc4\x02\n" +
 	"\x10AttestedNodeMask\x122\n" +
 	"\x15attestation_data_type\x18\x01 \x01(\bR\x13attestationDataType\x12,\n" +
 	"\x12cert_serial_number\x18\x02 \x01(\bR\x10certSerialNumber\x12$\n" +
@@ -1344,11 +1363,12 @@ var file_spire_common_common_proto_depIdxs = []int32{
 	8,  // 5: spire.common.Bundle.root_cas:type_name -> spire.common.Certificate
 	9,  // 6: spire.common.Bundle.jwt_signing_keys:type_name -> spire.common.PublicKey
 	9,  // 7: spire.common.Bundle.wit_signing_keys:type_name -> spire.common.PublicKey
-	8,  // [8:8] is the sub-list for method output_type
-	8,  // [8:8] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	9,  // 8: spire.common.Bundle.wag_signing_keys:type_name -> spire.common.PublicKey
+	9,  // [9:9] is the sub-list for method output_type
+	9,  // [9:9] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_spire_common_common_proto_init() }

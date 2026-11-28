@@ -734,6 +734,10 @@ const (
 	// WITAuthorityPublicKeySHA256 tags a WIT Authority public key
 	WITAuthorityPublicKeySHA256 = "wit_authority_public_key_sha256"
 
+	// WAGKeys tags some count or list of WAG Keys. Should NEVER provide the actual keys, use
+	// Key IDs instead.
+	WAGKeys = "wag_keys"
+
 	// WITKeys tags some count or list of WIT Keys. Should NEVER provide the actual keys, use
 	// Key IDs instead.
 	WITKeys = "wit_keys"
@@ -906,6 +910,11 @@ const (
 
 	// Telemetry tags a telemetry module
 	Telemetry = "telemetry"
+
+	// WAGKey functionality related to a WAG (Workload Authorization Grant) key; should be
+	// used with other tags to add clarity. Should NEVER actually provide the key itself,
+	// use Key ID instead.
+	WAGKey = "wag_key"
 
 	// WIT declares WIT-SVID type, clarifying metrics
 	WIT = "wit"

@@ -130,6 +130,8 @@ type experimentalConfig struct {
 	WITKeyType                 string                      `hcl:"wit_key_type" yaml:"wit_key_type"`
 	WITIssuer                  string                      `hcl:"wit_issuer" yaml:"wit_issuer"`
 	DefaultWITSVIDTTL          string                      `hcl:"default_wit_svid_ttl" yaml:"default_wit_svid_ttl"`
+	EnableWAGs                 bool                        `hcl:"enable_wags" yaml:"enable_wags"`
+	WAGKeyType                 string                      `hcl:"wag_key_type" yaml:"wag_key_type"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags" yaml:"feature_flags"`
 
@@ -727,10 +729,12 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		sc.CAKeyType = keyType
 		sc.JWTKeyType = keyType
 		sc.WITKeyType = keyType
+		sc.WAGKeyType = keyType
 	} else {
 		sc.CAKeyType = keymanager.ECP256
 		sc.JWTKeyType = keymanager.ECP256
 		sc.WITKeyType = keymanager.ECP256
+		sc.WAGKeyType = keymanager.ECP256
 	}
 
 	if c.Server.JWTKeyType != "" {
@@ -744,6 +748,13 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		sc.WITKeyType, err = keymanager.KeyTypeFromString(c.Server.Experimental.WITKeyType)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing wit_key_type: %w", err)
+		}
+	}
+
+	if c.Server.Experimental.WAGKeyType != "" {
+		sc.WAGKeyType, err = keymanager.KeyTypeFromString(c.Server.Experimental.WAGKeyType)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing wag_key_type: %w", err)
 		}
 	}
 
@@ -804,6 +815,11 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	sc.DisableJWTSVIDs = c.Server.DisableJWTSVIDs
 
 	sc.DisableWITSVIDs = !c.Server.Experimental.EnableWITSVIDs
+
+	if c.Server.Experimental.EnableWAGs {
+		sc.Log.Warn("Workload Authorization Grant (WAG) support is experimental and subject to change")
+	}
+	sc.DisableWAGs = !c.Server.Experimental.EnableWAGs
 
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {

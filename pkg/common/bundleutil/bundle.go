@@ -207,6 +207,10 @@ func MergeBundles(a, b *common.Bundle) (*common.Bundle, bool) {
 	for _, witSigningKey := range a.WitSigningKeys {
 		witSigningKeys[witSigningKey.String()] = true
 	}
+	wagSigningKeys := make(map[string]bool)
+	for _, wagSigningKey := range a.WagSigningKeys {
+		wagSigningKeys[wagSigningKey.String()] = true
+	}
 
 	var changed bool
 	for _, rootCA := range b.RootCas {
@@ -227,10 +231,16 @@ func MergeBundles(a, b *common.Bundle) (*common.Bundle, bool) {
 			changed = true
 		}
 	}
+	for _, wagSigningKey := range b.WagSigningKeys {
+		if !wagSigningKeys[wagSigningKey.String()] {
+			c.WagSigningKeys = append(c.WagSigningKeys, wagSigningKey)
+			changed = true
+		}
+	}
 	return c, changed
 }
 
-// PruneBundle removes the bundle RootCAs and JWT keys that expired before a given time
+// PruneBundle removes the bundle RootCAs, JWT, WIT and WAG keys that expired before a given time
 // It returns an error if pruning results in a bundle with no CAs or keys
 func PruneBundle(bundle *common.Bundle, expiration time.Time, log logrus.FieldLogger) (*common.Bundle, bool, error) {
 	if bundle == nil {
@@ -293,6 +303,19 @@ pruneRootCA:
 		newBundle.WitSigningKeys = append(newBundle.WitSigningKeys, witSigningKey)
 	}
 
+	for _, wagSigningKey := range bundle.WagSigningKeys {
+		notAfter := time.Unix(wagSigningKey.NotAfter, 0)
+		if !notAfter.After(expiration) {
+			log.WithFields(logrus.Fields{
+				telemetry.Kid:        wagSigningKey.Kid,
+				telemetry.Expiration: notAfter,
+			}).Info("Pruning WAG signing key due to expiration")
+			changed = true
+			continue
+		}
+		newBundle.WagSigningKeys = append(newBundle.WagSigningKeys, wagSigningKey)
+	}
+
 	if len(newBundle.RootCas) == 0 {
 		log.Warn("Pruning halted; all known CA certificates have expired")
 		return nil, false, errors.New("would prune all certificates")
@@ -306,6 +329,11 @@ pruneRootCA:
 	if len(bundle.WitSigningKeys) > 0 && len(newBundle.WitSigningKeys) == 0 {
 		log.Warn("Pruning halted; all known WIT signing keys have expired")
 		return nil, false, errors.New("would prune all WIT signing keys")
+	}
+
+	if len(bundle.WagSigningKeys) > 0 && len(newBundle.WagSigningKeys) == 0 {
+		log.Warn("Pruning halted; all known WAG signing keys have expired")
+		return nil, false, errors.New("would prune all WAG signing keys")
 	}
 
 	return newBundle, changed, nil

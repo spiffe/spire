@@ -51,6 +51,7 @@ type ManagedCA interface {
 	SetX509CA(*ca.X509CA)
 	SetJWTKey(*ca.JWTKey)
 	SetWITKey(*ca.WITKey)
+	SetWAGKey(*ca.WAGKey)
 	NotifyTaintedX509Authorities([]*x509.Certificate)
 }
 
@@ -85,8 +86,10 @@ type Config struct {
 	X509CAKeyType   keymanager.KeyType
 	DisableJWTSVIDs bool
 	DisableWITSVIDs bool
+	DisableWAGs     bool
 	JWTKeyType      keymanager.KeyType
 	WITKeyType      keymanager.KeyType
+	WAGKeyType      keymanager.KeyType
 	Dir             string
 	Log             logrus.FieldLogger
 	Metrics         telemetry.Metrics
@@ -112,6 +115,10 @@ type Manager struct {
 	currentWITKey *witKeySlot
 	nextWITKey    *witKeySlot
 	witKeyMutex   sync.RWMutex
+
+	currentWAGKey *wagKeySlot
+	nextWAGKey    *wagKeySlot
+	wagKeyMutex   sync.RWMutex
 
 	journal *Journal
 
@@ -212,6 +219,23 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		m.nextWITKey = nextWITKey.(*witKeySlot)
 	}
 
+	if currentWAGKey, ok := slots[CurrentWAGKeySlot]; ok {
+		m.currentWAGKey = currentWAGKey.(*wagKeySlot)
+
+		// Unlike the other key types, do not activate a journaled WAG key
+		// when WAGs are disabled, so that toggling the feature off on restart
+		// does not leave a signing key installed in the CA.
+		if !m.IsWAGsDisabled() && !currentWAGKey.IsEmpty() && !currentWAGKey.ShouldActivateNext(now) {
+			// activate the WAG key immediately if it is set and not within
+			// activation time of the next WAG key.
+			m.activateWAGKey(ctx)
+		}
+	}
+
+	if nextWAGKey, ok := slots[NextWAGKeySlot]; ok {
+		m.nextWAGKey = nextWAGKey.(*wagKeySlot)
+	}
+
 	if m.nextX509CA != nil && !m.nextX509CA.IsEmpty() {
 		m.setX509CARotateMaxTTLGauge(m.c.Clock.Now())
 	}
@@ -241,6 +265,10 @@ func (m *Manager) IsJWTSVIDsDisabled() bool {
 
 func (m *Manager) IsWITSVIDsDisabled() bool {
 	return m.c.DisableWITSVIDs
+}
+
+func (m *Manager) IsWAGsDisabled() bool {
+	return m.c.DisableWAGs
 }
 
 func (m *Manager) GetCurrentX509CASlot() Slot {
@@ -526,7 +554,7 @@ func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (
 		}
 	}
 
-	bundle, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey}, nil)
+	bundle, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey}, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -664,12 +692,134 @@ func (m *Manager) PublishWITKey(ctx context.Context, witKey *common.PublicKey) (
 		}
 	}
 
-	bundle, err := m.appendBundle(ctx, nil, nil, []*common.PublicKey{witKey})
+	bundle, err := m.appendBundle(ctx, nil, nil, []*common.PublicKey{witKey}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return bundle.WitSigningKeys, nil
+}
+
+func (m *Manager) GetCurrentWAGKeySlot() Slot {
+	m.wagKeyMutex.RLock()
+	defer m.wagKeyMutex.RUnlock()
+
+	return m.currentWAGKey
+}
+
+func (m *Manager) GetNextWAGKeySlot() Slot {
+	m.wagKeyMutex.RLock()
+	defer m.wagKeyMutex.RUnlock()
+
+	return m.nextWAGKey
+}
+
+func (m *Manager) PrepareWAGKey(ctx context.Context) (err error) {
+	if m.IsWAGsDisabled() {
+		return nil
+	}
+
+	counter := telemetry_server.StartServerCAManagerPrepareWAGKeyCall(m.c.Metrics)
+	defer counter.Done(&err)
+
+	m.wagKeyMutex.Lock()
+	defer m.wagKeyMutex.Unlock()
+
+	// If current slot is not empty, use next to prepare
+	slot := m.currentWAGKey
+	if !slot.IsEmpty() {
+		slot = m.nextWAGKey
+	}
+
+	log := m.c.Log.WithField(telemetry.Slot, slot.id)
+	log.Debug("Preparing WAG key")
+
+	slot.Reset()
+
+	now := m.c.Clock.Now()
+	notAfter := now.Add(m.caTTL)
+
+	km := m.c.Catalog.GetKeyManager()
+	signer, err := km.GenerateKey(ctx, slot.KmKeyID(), m.c.WAGKeyType)
+	if err != nil {
+		return err
+	}
+
+	wagKey, err := newWAGKey(signer, notAfter)
+	if err != nil {
+		return err
+	}
+
+	publicKey, err := publicKeyFromWAGKey(wagKey)
+	if err != nil {
+		return err
+	}
+
+	if _, err := m.PublishWAGKey(ctx, publicKey); err != nil {
+		return err
+	}
+
+	slot.issuedAt = now
+	slot.wagKey = wagKey
+	slot.status = journal.Status_PREPARED
+	slot.authorityID = wagKey.Kid
+	slot.notAfter = wagKey.NotAfter
+
+	if err := m.journal.AppendWAGKey(ctx, slot.id, slot.issuedAt, slot.wagKey); err != nil {
+		log.WithError(err).Error("Unable to append WAG key to journal")
+	}
+
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.Slot:             slot.id,
+		telemetry.IssuedAt:         slot.issuedAt,
+		telemetry.Expiration:       slot.wagKey.NotAfter,
+		telemetry.LocalAuthorityID: slot.authorityID,
+	}).Info("WAG key prepared")
+	return nil
+}
+
+func (m *Manager) ActivateWAGKey(ctx context.Context) {
+	if m.IsWAGsDisabled() {
+		return
+	}
+	m.wagKeyMutex.RLock()
+	defer m.wagKeyMutex.RUnlock()
+
+	m.activateWAGKey(ctx)
+}
+
+func (m *Manager) RotateWAGKey(ctx context.Context) {
+	if m.IsWAGsDisabled() {
+		return
+	}
+
+	m.wagKeyMutex.Lock()
+	defer m.wagKeyMutex.Unlock()
+
+	m.currentWAGKey, m.nextWAGKey = m.nextWAGKey, m.currentWAGKey
+	m.nextWAGKey.Reset()
+
+	if err := m.journal.UpdateWAGKeyStatus(ctx, m.nextWAGKey.AuthorityID(), journal.Status_OLD); err != nil {
+		m.c.Log.WithError(err).Error("Failed to update status on WAGKey journal entry")
+	}
+
+	m.activateWAGKey(ctx)
+}
+
+// PublishWAGKey appends the passed WAG key to the local trust domain bundle
+// and returns the updated list of WAG keys contained in the bundle.
+//
+// WAG keys are not published through the UpstreamAuthority plugin: WAGs are
+// presented to parties outside of the trust domain, and the plugin interface
+// has no support for them.
+// TODO: revisit once there is a need to publish WAG keys in nested topologies.
+func (m *Manager) PublishWAGKey(ctx context.Context, wagKey *common.PublicKey) ([]*common.PublicKey, error) {
+	bundle, err := m.appendBundle(ctx, nil, nil, nil, []*common.PublicKey{wagKey})
+	if err != nil {
+		return nil, err
+	}
+
+	return bundle.WagSigningKeys, nil
 }
 
 func (m *Manager) SubscribeToLocalBundle(ctx context.Context) error {
@@ -866,6 +1016,24 @@ func (m *Manager) activateWITKey(ctx context.Context) {
 	}
 
 	m.c.CA.SetWITKey(m.currentWITKey.witKey)
+}
+
+func (m *Manager) activateWAGKey(ctx context.Context) {
+	log := m.c.Log.WithFields(logrus.Fields{
+		telemetry.Slot:             m.currentWAGKey.id,
+		telemetry.IssuedAt:         m.currentWAGKey.issuedAt,
+		telemetry.Expiration:       m.currentWAGKey.wagKey.NotAfter,
+		telemetry.LocalAuthorityID: m.currentWAGKey.authorityID,
+	})
+	log.Info("WAG key activated")
+	telemetry_server.IncrActivateWAGKeyManagerCounter(m.c.Metrics)
+
+	m.currentWAGKey.status = journal.Status_ACTIVE
+	if err := m.journal.UpdateWAGKeyStatus(ctx, m.currentWAGKey.AuthorityID(), journal.Status_ACTIVE); err != nil {
+		log.WithError(err).Error("Failed to update to activated status on WAGKey journal entry")
+	}
+
+	m.c.CA.SetWAGKey(m.currentWAGKey.wagKey)
 }
 
 func (m *Manager) bundleUpdated() {
@@ -1128,7 +1296,7 @@ func (m *Manager) selfSignX509CA(ctx context.Context, signer crypto.Signer) (*ca
 		return nil, fmt.Errorf("invalid downstream X509 CA: %w", err)
 	}
 
-	if _, err := m.appendBundle(ctx, []*x509.Certificate{cert}, nil, nil); err != nil {
+	if _, err := m.appendBundle(ctx, []*x509.Certificate{cert}, nil, nil, nil); err != nil {
 		return nil, err
 	}
 
@@ -1139,7 +1307,7 @@ func (m *Manager) selfSignX509CA(ctx context.Context, signer crypto.Signer) (*ca
 	}, nil
 }
 
-func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey, witSigningKeys []*common.PublicKey) (*common.Bundle, error) {
+func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey, witSigningKeys []*common.PublicKey, wagSigningKeys []*common.PublicKey) (*common.Bundle, error) {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{
@@ -1153,6 +1321,7 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 		RootCas:        rootCAs,
 		JwtSigningKeys: jwtSigningKeys,
 		WitSigningKeys: witSigningKeys,
+		WagSigningKeys: wagSigningKeys,
 	})
 	if err != nil {
 		return nil, err
@@ -1338,6 +1507,19 @@ func newWITKey(signer crypto.Signer, expiresAt time.Time) (*ca.WITKey, error) {
 	}, nil
 }
 
+func newWAGKey(signer crypto.Signer, expiresAt time.Time) (*ca.WAGKey, error) {
+	kid, err := newKeyID()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ca.WAGKey{
+		Signer:   signer,
+		Kid:      kid,
+		NotAfter: expiresAt,
+	}, nil
+}
+
 func newKeyID() (string, error) {
 	choices := make([]byte, 32)
 	_, err := rand.Read(choices)
@@ -1379,6 +1561,19 @@ func publicKeyFromWITKey(witKey *ca.WITKey) (*common.PublicKey, error) {
 		PkixBytes: pkixBytes,
 		Kid:       witKey.Kid,
 		NotAfter:  witKey.NotAfter.Unix(),
+	}, nil
+}
+
+func publicKeyFromWAGKey(wagKey *ca.WAGKey) (*common.PublicKey, error) {
+	pkixBytes, err := x509.MarshalPKIXPublicKey(wagKey.Signer.Public())
+	if err != nil {
+		return nil, err
+	}
+
+	return &common.PublicKey{
+		PkixBytes: pkixBytes,
+		Kid:       wagKey.Kid,
+		NotAfter:  wagKey.NotAfter.Unix(),
 	}, nil
 }
 
